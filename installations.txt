@@ -1,0 +1,207 @@
+# AI Brain Network Assistant - Installation Commands
+
+## Quick Installation (Copy & Paste)
+
+### 1. Create Virtual Environment
+```bash
+python -m venv venv_ai
+source venv_ai/bin/activate
+```
+
+### 2. Install All Dependencies (One Command)
+```bash
+# Option A: Using requirements.txt (RECOMMENDED)
+pip install -r requirements.txt
+
+# Option B: Install all packages manually
+pip install transformers torch accelerate bitsandbytes scikit-learn fastapi uvicorn streamlit psutil requests
+```
+
+### 3. Start the System
+```bash
+# Terminal 1: API Server
+python simple_smart_api.py
+
+# Terminal 2: Chatbot UI  
+streamlit run simple_smart_ui.py --server.port 8502 --server.headless true
+```
+
+### 4. Access
+- **Chatbot UI**: http://localhost:8502
+- **API Server**: http://localhost:8088
+
+---
+
+## Individual Package Installation
+
+### Core AI Packages
+```bash
+pip install transformers
+pip install torch
+pip install accelerate
+pip install bitsandbytes
+pip install scikit-learn
+```
+
+### Web Framework
+```bash
+pip install fastapi
+pip install uvicorn
+```
+
+### UI Framework
+```bash
+pip install streamlit
+```
+
+### System Monitoring
+```bash
+pip install psutil
+pip install requests
+```
+
+---
+
+## System-Specific Installation
+
+### macOS
+```bash
+# Install Python (if needed)
+brew install python
+
+# Install network tools (usually pre-installed)
+# networksetup, system_profiler, ifconfig
+```
+
+### Linux/Raspberry Pi
+```bash
+# Install Python and network tools
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip
+sudo apt install wireless-tools iwconfig
+
+# Create virtual environment
+python3.11 -m venv venv_ai
+source venv_ai/bin/activate
+
+# Install dependencies
+pip install transformers torch accelerate bitsandbytes scikit-learn fastapi uvicorn streamlit psutil requests
+```
+
+### Windows
+```bash
+# Install Python from python.org
+# Then:
+python -m venv venv_ai
+venv_ai\Scripts\activate
+pip install transformers torch accelerate bitsandbytes scikit-learn fastapi uvicorn streamlit psutil requests
+```
+
+---
+
+## Verification Commands
+
+### Test Installation
+```bash
+# Test AI brain
+python simple_smart_ai.py
+
+# Test API server
+python simple_smart_api.py
+
+# Test UI
+streamlit run simple_smart_ui.py --server.port 8502
+```
+
+### Check Services
+```bash
+# Check API health
+curl -s http://localhost:8088/health
+
+# Test chat endpoint
+curl -X POST http://localhost:8088/chat -H "Content-Type: application/json" -d '{"message": "What is my WiFi status?"}'
+
+# Check network data
+curl -s http://localhost:8088/network-status
+```
+
+---
+
+## Troubleshooting Commands
+
+### Kill Existing Processes
+```bash
+pkill -f simple_smart_api
+pkill -f streamlit
+lsof -ti:8088,8502 | xargs kill -9 2>/dev/null || true
+```
+
+### Check Ports
+```bash
+lsof -i :8088
+lsof -i :8502
+```
+
+### Check Dependencies
+```bash
+pip list | grep -E "(transformers|torch|fastapi|streamlit)"
+```
+
+### Memory Usage (Pi)
+```bash
+htop
+free -h
+```
+
+---
+
+## One-Line Setup (Advanced)
+
+### Complete Setup Script
+```bash
+python -m venv venv_ai && source venv_ai/bin/activate && pip install transformers torch accelerate bitsandbytes scikit-learn fastapi uvicorn streamlit psutil requests && echo "Installation complete! Run: python simple_smart_api.py"
+```
+
+### Background Start Script
+```bash
+source venv_ai/bin/activate && python simple_smart_api.py & sleep 3 && streamlit run simple_smart_ui.py --server.port 8502 --server.headless true &
+```
+
+---
+
+## Package Versions (Tested)
+
+```
+transformers==4.57.1
+torch==2.9.0
+accelerate==1.10.1
+bitsandbytes==0.42.0
+scikit-learn==1.7.2
+fastapi==0.119.0
+uvicorn==0.38.0
+streamlit==1.50.0
+psutil==7.1.0
+requests==2.32.5
+```
+
+---
+
+## Quick Reference
+
+### Start System
+```bash
+source venv_ai/bin/activate
+python simple_smart_api.py &
+streamlit run simple_smart_ui.py --server.port 8502 --server.headless true &
+```
+
+### Stop System
+```bash
+pkill -f simple_smart_api
+pkill -f streamlit
+```
+
+### Access URLs
+- **Chatbot**: http://localhost:8502
+- **API**: http://localhost:8088
+- **API Docs**: http://localhost:8088/docs
