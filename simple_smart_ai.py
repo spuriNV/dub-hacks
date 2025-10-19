@@ -190,17 +190,21 @@ class SimpleSmartAI:
         try:
             # Create context from network data and knowledge
             context = self._create_ai_context(user_question, network_data, relevant_knowledge)
-            
+
             # Create a more conversational prompt
             wifi = network_data.get('wifi', {})
             connectivity = network_data.get('connectivity', {})
-            
+
             # Build a conversational prompt
             prompt = f"You are a helpful network assistant. User's network: WiFi {'connected' if wifi.get('status') == 'connected' else 'disconnected'}, Internet {'working' if connectivity.get('internet_connected') else 'not working'}. User asks: {user_question}. Respond like a friendly human assistant:"
-            
+
             # Tokenize input
             inputs = self.tokenizer.encode(prompt, return_tensors="pt", max_length=200, truncation=True)
-            
+
+            # Move inputs to the same device as the model
+            device = next(self.model.parameters()).device
+            inputs = inputs.to(device)
+
             # Generate response
             with torch.no_grad():
                 outputs = self.model.generate(
