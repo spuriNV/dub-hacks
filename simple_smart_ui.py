@@ -8,10 +8,7 @@ import streamlit as st
 import requests
 import json
 import time
-import os
-import subprocess
 from datetime import datetime
-from audio_recorder_streamlit import audio_recorder
 
 # Configure Streamlit page
 st.set_page_config(
@@ -102,6 +99,7 @@ if "pending_audio" not in st.session_state:
 def get_network_status():
     """Get current network status from AI brain"""
     try:
+        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
         response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
         if response.status_code == 200:
             return response.json()
