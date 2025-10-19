@@ -1,6 +1,7 @@
 import React from "react";
-import { Brain, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "./ui/button";
+import logo from "../assets/logo.png";
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -41,15 +42,11 @@ export default function Layout({ children }) {
       <div className="relative z-10 backdrop-blur-xl bg-white/10 border-b border-white/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-center lg:justify-start gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center backdrop-blur-xl border border-white/20"
-              style={{
-                boxShadow: "0 0 30px rgba(59, 130, 246, 0.5)",
-              }}
-            >
-              <Brain className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center">
+              <img src={logo} alt="IT-Mobile Logo" className="w-12 h-12 object-contain" />
             </div>
             <div className="text-center lg:text-left">
-              <h1 className="text-2xl font-bold text-white">AI Network Brain</h1>
+              <h1 className="text-2xl font-bold text-white">IT-Mobile</h1>
               <p className="text-sm text-blue-200">Intelligent network analysis powered by RAG + AI</p>
             </div>
           </div>
