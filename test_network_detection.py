@@ -5,7 +5,7 @@ Test script to debug network detection
 
 import sys
 import os
-sys.path.insert(0, '/home/mla436/dub-hacks')
+sys.path.insert(0, '/home/admin/dub-hacks')
 
 from simple_smart_ai import SimpleSmartAI
 import json
