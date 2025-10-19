@@ -8,10 +8,7 @@ import streamlit as st
 import requests
 import json
 import time
-import os
-import subprocess
 from datetime import datetime
-from audio_recorder_streamlit import audio_recorder
 
 # Configure Streamlit page
 st.set_page_config(
@@ -87,7 +84,7 @@ if "api_url" not in st.session_state:
 def get_network_status():
     """Get current network status from AI brain"""
     try:
-        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=10)
+        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
         if response.status_code == 200:
             return response.json()
         return None
@@ -98,7 +95,7 @@ def get_network_status():
 def get_ai_status():
     """Get AI brain status"""
     try:
-        response = requests.get(f"{st.session_state.api_url}/ai-status", timeout=10)
+        response = requests.get(f"{st.session_state.api_url}/ai-status", timeout=30)
         if response.status_code == 200:
             return response.json()
         return None
@@ -112,7 +109,7 @@ def send_chat_message(message):
         response = requests.post(
             f"{st.session_state.api_url}/chat",
             json={"message": message},
-            timeout=15
+            timeout=120
         )
         if response.status_code == 200:
             return response.json()
@@ -228,101 +225,6 @@ def display_ai_status():
     else:
         st.sidebar.error("❌ Unable to get AI brain status")
 
-def save_audio_recording(audio_bytes):
-    """Save audio recording to recordings folder"""
-    try:
-        # Create recordings folder if it doesn't exist
-        recordings_dir = os.path.join(os.path.dirname(__file__), "recordings")
-        os.makedirs(recordings_dir, exist_ok=True)
-
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"recording_{timestamp}.wav"
-        filepath = os.path.join(recordings_dir, filename)
-
-        # Save the audio file
-        with open(filepath, "wb") as f:
-            f.write(audio_bytes)
-
-        return filepath, filename
-    except Exception as e:
-        st.error(f"Error saving recording: {e}")
-        return None, None
-
-def convert_to_wav_16khz(input_file):
-    """Convert audio to 16kHz WAV format for whisper.cpp"""
-    try:
-        # Generate output filename
-        base_name = os.path.splitext(input_file)[0]
-        output_file = f"{base_name}_16khz.wav"
-
-        # Use ffmpeg to convert
-        cmd = [
-            "ffmpeg",
-            "-i", input_file,
-            "-ar", "16000",  # 16kHz sample rate
-            "-ac", "1",      # mono
-            "-c:a", "pcm_s16le",  # 16-bit PCM
-            "-y",            # overwrite output file
-            output_file
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            return output_file
-        else:
-            st.error(f"FFmpeg error: {result.stderr}")
-            return None
-    except Exception as e:
-        st.error(f"Error converting audio: {e}")
-        return None
-
-def transcribe_with_whisper(audio_file):
-    """Transcribe audio using whisper.cpp"""
-    try:
-        # Paths
-        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
-        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
-
-        # Create transcriptions folder
-        transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
-        os.makedirs(transcriptions_dir, exist_ok=True)
-
-        # Generate output file path (without extension)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_base = os.path.join(transcriptions_dir, f"transcription_{timestamp}")
-
-        # Run whisper.cpp
-        cmd = [
-            whisper_cli,
-            "-m", model_path,
-            "-f", audio_file,
-            "--output-txt",           # Output text file
-            "--output-file", output_base,
-            "-l", "en",               # English language
-            "--no-timestamps"         # Clean text without timestamps
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            # Read the generated text file
-            txt_file = f"{output_base}.txt"
-            if os.path.exists(txt_file):
-                with open(txt_file, 'r') as f:
-                    transcription = f.read().strip()
-                return transcription, txt_file
-            else:
-                st.error("Transcription file not found")
-                return None, None
-        else:
-            st.error(f"Whisper error: {result.stderr}")
-            return None, None
-    except Exception as e:
-        st.error(f"Error transcribing audio: {e}")
-        return None, None
-
 def main():
     """Main application"""
     # Header
@@ -356,69 +258,7 @@ def main():
     
     # Chat interface
     st.markdown("### 💬 Chat with AI Brain")
-
-    # Audio recording section
-    st.markdown("#### 🎙️ Voice Recording")
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        audio_bytes = audio_recorder(
-            text="Click to record",
-            recording_color="#e74c3c",
-            neutral_color="#3498db",
-            icon_name="microphone",
-            icon_size="2x"
-        )
-
-    with col2:
-        if audio_bytes:
-            st.audio(audio_bytes, format="audio/wav")
-
-    # Save and transcribe buttons
-    if audio_bytes:
-        col_btn1, col_btn2 = st.columns(2)
-
-        with col_btn1:
-            if st.button("💾 Save Recording", type="primary"):
-                filepath, filename = save_audio_recording(audio_bytes)
-                if filepath:
-                    st.success(f"✅ Recording saved as: {filename}")
-                    st.info(f"📁 Location: {filepath}")
-                    # Store in session state for transcription
-                    st.session_state.last_recording = filepath
-
-        with col_btn2:
-            if st.button("📝 Save & Transcribe", type="primary"):
-                with st.spinner("🎙️ Saving recording..."):
-                    filepath, filename = save_audio_recording(audio_bytes)
-
-                if filepath:
-                    st.success(f"✅ Recording saved: {filename}")
-
-                    with st.spinner("🔄 Converting to 16kHz WAV..."):
-                        converted_file = convert_to_wav_16khz(filepath)
-
-                    if converted_file:
-                        st.info("✅ Audio converted successfully")
-
-                        with st.spinner("🧠 Transcribing with Whisper.cpp..."):
-                            transcription, txt_file = transcribe_with_whisper(converted_file)
-
-                        if transcription:
-                            st.success("✅ Transcription complete!")
-                            st.markdown("### 📄 Transcription:")
-                            st.text_area("Transcribed Text:", transcription, height=150)
-                            st.info(f"📁 Transcription saved to: {txt_file}")
-
-                            # Store transcription in session state
-                            st.session_state.last_transcription = transcription
-                        else:
-                            st.error("❌ Transcription failed")
-                    else:
-                        st.error("❌ Audio conversion failed")
-
-    st.markdown("---")
-
+    
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
