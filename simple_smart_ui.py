@@ -8,7 +8,10 @@ import streamlit as st
 import requests
 import json
 import time
+import os
+import subprocess
 from datetime import datetime
+from audio_recorder_streamlit import audio_recorder
 
 # Configure Streamlit page
 st.set_page_config(

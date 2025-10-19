@@ -92,3 +92,18 @@ coverage.xml
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Voice System - Generated Audio/Recordings
+recordings/
+transcriptions/
+audio_responses/
+
+# Documentation (auto-generated)
+AUDIO_PLAYBACK_FIX.md
+QUICKSTART_VOICE.md
+SYSTEM_READY.md
+TROUBLESHOOTING.md
+UI_IMPROVEMENTS.md
+VOICE_INTEGRATION_GUIDE.md
+VOICE_INTEGRATION_SUMMARY.md
+test_voice_system.py

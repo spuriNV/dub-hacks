@@ -7,8 +7,18 @@ A conversational AI assistant that analyzes your network in real-time and provid
 - **Real-time Network Analysis**: Uses CLI commands to check your actual WiFi/internet status
 - **RAG Knowledge Retrieval**: Finds relevant troubleshooting info from professional sources
 - **AI-Powered Responses**: Uses distilgpt2 model for intelligent, conversational answers
+- **🎙️ Voice Communication**: Talk to your AI assistant using Whisper.cpp + Piper TTS (NEW!)
 - **Cross-Platform**: Works on Mac, Linux, and Raspberry Pi
 - **Offline**: No internet required - runs completely locally
+
+## 🎙️ NEW: Voice Integration
+
+Your AI Brain now supports **two-way voice communication**:
+- **Speak** your questions using the microphone
+- **Listen** to AI responses in natural speech
+- **Offline** voice processing (Whisper.cpp + Piper TTS)
+
+**Quick Voice Setup**: See [QUICKSTART_VOICE.md](QUICKSTART_VOICE.md) for a 5-minute setup guide!
 
 ## 📋 Prerequisites
 
@@ -250,22 +260,38 @@ pip install watchdog
 ## 📁 File Structure
 
 ```
-/slm/
-├── simple_smart_ai.py      # AI brain (RAG + distilgpt2)
-├── simple_smart_api.py    # FastAPI server
-├── simple_smart_ui.py     # Streamlit chatbot UI
-├── requirements.txt       # Dependencies (pip install -r requirements.txt)
-├── venv_ai/              # Virtual environment
-├── HOW_TO_RUN.md         # This comprehensive guide
-└── installations.txt     # Quick installation commands
+dub-hacks/
+├── simple_smart_ai.py           # AI brain (RAG + distilgpt2)
+├── simple_smart_api.py          # FastAPI server
+├── simple_smart_ui.py           # Streamlit chatbot UI
+├── piper_tts_module.py          # Piper TTS integration (NEW)
+│
+├── requirements.txt             # Dependencies
+├── venv_ai/                     # Virtual environment
+│
+├── recordings/                  # Voice recordings (NEW)
+├── transcriptions/              # Whisper transcriptions (NEW)
+├── audio_responses/             # TTS audio files (NEW)
+│
+├── HOW_TO_RUN.md               # This comprehensive guide
+├── QUICKSTART_VOICE.md         # 5-minute voice setup (NEW)
+├── VOICE_INTEGRATION_GUIDE.md  # Detailed voice guide (NEW)
+├── VOICE_INTEGRATION_SUMMARY.md # Implementation summary (NEW)
+│
+├── setup_voice.sh              # Voice setup script (NEW)
+├── test_voice_system.py        # Voice system test (NEW)
+└── installations.txt           # Quick installation commands
 ```
 
 ### 📋 Quick Reference Files
-- **`HOW_TO_RUN.md`**: Complete setup and usage guide
+- **`HOW_TO_RUN.md`**: Complete setup and usage guide (this file)
+- **`QUICKSTART_VOICE.md`**: 5-minute voice setup guide
+- **`VOICE_INTEGRATION_GUIDE.md`**: Detailed voice documentation
 - **`installations.txt`**: Copy-paste installation commands
 - **`simple_smart_ai.py`**: Core AI brain with RAG + model
 - **`simple_smart_api.py`**: API server (port 8088)
 - **`simple_smart_ui.py`**: Chatbot UI (port 8502)
+- **`piper_tts_module.py`**: Piper TTS integration module
 
 ## 🚀 Deployment
 
@@ -295,9 +321,20 @@ sudo apt install wireless-tools iwconfig
 - **Real-time network analysis**
 - **Conversational AI responses**
 - **RAG knowledge retrieval**
+- **🎙️ Voice input** (Whisper.cpp speech-to-text) - NEW!
+- **🔊 Voice output** (Piper TTS text-to-speech) - NEW!
+- **Voice conversations** (seamless voice-to-voice flow) - NEW!
 - **Cross-platform support**
 - **Offline operation**
 - **Beautiful web interface**
+
+### 🎙️ Voice Features (NEW)
+- **Microphone recording** in browser
+- **Automatic transcription** using Whisper.cpp
+- **Natural voice responses** using Piper TTS
+- **One-click voice chat** button
+- **Toggle voice mode** on/off
+- **Dual input modes**: voice OR text
 
 ### 🔮 Future Enhancements
 - **More AI models** (Llama, Mistral)
@@ -305,6 +342,7 @@ sudo apt install wireless-tools iwconfig
 - **Network optimization suggestions**
 - **Historical network data**
 - **Mobile app interface**
+- **Multiple voice models** and languages
 
 ## 📞 Support
 
