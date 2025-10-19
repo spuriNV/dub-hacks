@@ -3,7 +3,7 @@ import requests
 import json
 from datetime import datetime
 
-# ---------- Page config ----------
+# ---------- Page  ----------
 st.set_page_config(
     page_title="AI Network Brain",
     page_icon="🧠",
