@@ -38,7 +38,7 @@ app.add_middleware(
 
 # Initialize the AI assistant
 logger.info("🧠 Initializing Simple Smart AI...")
-ai_assistant = SimpleSmartAI()
+ai_assistant = SimpleSmartAI(test_mode=True)  # Enable test mode to simulate problems
 logger.info("✅ Simple Smart AI ready!")
 
 # Pydantic models
