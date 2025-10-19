@@ -893,14 +893,16 @@ Response:"""
             problems.append("Internet not working")
             logger.info("🔍 CLI detected: Internet is not working")
         
-        # Only troubleshoot for EXTREMELY poor signal (not just "weak")
+        # Troubleshoot for poor signal (more sensitive detection)
         signal_strength = wifi.get('signal_strength', 'unknown')
         if signal_strength != 'unknown':
             try:
-                signal_int = int(signal_strength)
-                if signal_int < -85:  # Only very poor signal (more strict than -80)
-                    problems.append("Extremely weak signal")
-                    logger.info(f"🔍 CLI detected: Extremely weak signal ({signal_int} dBm)")
+                # Extract numeric value from signal string like "-65 dBm"
+                signal_int = int(signal_strength.replace(' dBm', ''))
+                logger.info(f"🔍 Signal check: {signal_int} dBm, threshold: -60")
+                if signal_int < -60:  # Poor signal threshold (more sensitive than -85)
+                    problems.append("Poor WiFi signal")
+                    logger.info(f"🔍 CLI detected: Poor WiFi signal ({signal_int} dBm)")
             except:
                 pass
         
@@ -939,7 +941,7 @@ Response:"""
         
         try:
             signal_int = int(signal_strength)
-            return signal_int > -70  # Good if better than -70 dBm
+            return signal_int > -50  # Good if better than -50 dBm (strict threshold for reassurance)
         except:
             return True  # Assume good if we can't parse
     
@@ -1018,11 +1020,12 @@ Response:"""
         signal_strength = wifi.get('signal_strength', 'unknown')
         if signal_strength != 'unknown':
             try:
-                signal_int = int(signal_strength)
-                if signal_int < -85:
-                    problems.append(f"🔴 **Extremely weak WiFi signal** - {signal_strength} dBm (very poor)")
-                elif signal_int < -70:
-                    problems.append(f"🟡 **Weak WiFi signal** - {signal_strength} dBm (poor)")
+                # Extract numeric value from signal string like "-65 dBm"
+                signal_int = int(signal_strength.replace(' dBm', ''))
+                if signal_int < -60:
+                    problems.append(f"🔴 **Poor WiFi signal** - {signal_strength} (below -60 dBm threshold)")
+                elif signal_int < -50:
+                    problems.append(f"🟡 **Fair WiFi signal** - {signal_strength} (could be better)")
             except:
                 pass
         
@@ -1107,20 +1110,20 @@ Response:"""
         """Simulate network problems for testing"""
         return {
             "wifi": {
-                "status": "disconnected",
-                "ssid": "None",
-                "signal_strength": "-95 dBm",
+                "status": "connected",
+                "ssid": "TestNetwork",
+                "signal_strength": "-65 dBm",  # Test signal between -60 and -70
                 "interface": "en0",
-                "ip_address": "None"
+                "ip_address": "192.168.1.100"
             },
             "connectivity": {
-                "internet_connected": False,
-                "dns_working": False,
-                "latency": "999ms"
+                "internet_connected": True,
+                "dns_working": True,
+                "latency": "45ms"
             },
             "performance": {
-                "active_connections": 0,
-                "network_quality": "poor"
+                "active_connections": 5,
+                "network_quality": "fair"
             },
             "timestamp": time.time(),
             "diagnostics": {
