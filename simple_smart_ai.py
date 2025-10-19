@@ -19,6 +19,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import bash_cmd
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -64,8 +65,8 @@ class SimpleSmartAI:
         """Load a lightweight Hugging Face model for text generation"""
         logger.info("🤖 Loading lightweight AI model...")
         try:
-            # Use a very lightweight model
-            model_name = "google/gemma-2b"
+            # Use a very lightweight, open model
+            model_name = "Qwen/Qwen2.5-0.5B"
             
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -91,28 +92,46 @@ class SimpleSmartAI:
         """Load WiFi troubleshooting knowledge base"""
         return [
             {
-                "title": "WiFi Signal Strength Optimization",
-                "content": "Optimal WiFi signal strength should be -30 to -50 dBm for excellent performance, -50 to -70 dBm for good performance. Signal degradation occurs due to free space path loss (6 dB per doubling of distance). Physical obstacles like walls, metal objects, and water can cause 10-20 dB signal loss. Solutions include positioning router at center of coverage area, elevating router 3-6 feet above ground, using 5GHz band for less interference, implementing WiFi extenders or mesh systems, checking antenna orientation, and reducing interference from microwaves and Bluetooth devices.",
+                "title": "WiFi Signal Strength Tips",
+                "content": "Move your router to a central location, place it on a high shelf (3-6 feet up), and keep it away from walls and metal objects. Try the 5GHz network instead of 2.4GHz for better speed. Consider a WiFi extender for dead spots.",
                 "category": "signal_issues",
                 "keywords": ["signal strength", "dBm", "path loss", "obstacles", "antenna", "positioning"]
             },
             {
-                "title": "Network Congestion and Bandwidth Management",
-                "content": "Network congestion occurs when multiple devices compete for limited bandwidth. The 2.4GHz band has only 3 non-overlapping channels (1, 6, 11), while 5GHz offers 24 non-overlapping channels. Solutions include implementing Quality of Service (QoS) to prioritize critical traffic, using 5GHz band for high-bandwidth applications, limiting concurrent connections to prevent oversubscription, upgrading to WiFi 6 (802.11ax) for better efficiency, implementing bandwidth limiting per device, using wired connections for stationary devices, and scheduling bandwidth-heavy tasks during off-peak hours.",
+                "title": "Slow Internet Speed Solutions",
+                "content": "Restart your router (unplug for 30 seconds). Move closer to your router or use 5GHz network. Close unnecessary apps and browser tabs. Disconnect some devices if you have many connected.",
                 "category": "speed_issues",
                 "keywords": ["congestion", "bandwidth", "QoS", "channels", "WiFi 6", "monitoring"]
             },
             {
-                "title": "WiFi Security Best Practices",
-                "content": "WiFi security vulnerabilities include weak encryption, default passwords, and outdated protocols. WPA3-Personal uses SAE (Simultaneous Authentication of Equals) for stronger password-based authentication. Solutions include enabling WPA3 encryption instead of WPA2, using strong passwords (12+ characters, mixed case, numbers, symbols), disabling WPS (Wi-Fi Protected Setup) due to security flaws, implementing MAC address filtering for additional security, enabling guest network isolation, regular firmware updates for security patches, and monitoring for unauthorized access attempts.",
+                "title": "WiFi Security Tips",
+                "content": "Use a strong password (12+ characters with letters, numbers, symbols). Change the default router password. Enable WPA3 encryption if available. Keep router software updated. Create a separate guest network.",
                 "category": "security_issues",
                 "keywords": ["WPA3", "security", "encryption", "authentication", "firmware", "monitoring"]
             },
             {
-                "title": "WiFi Troubleshooting Methodology",
-                "content": "Systematic troubleshooting follows the OSI model: Physical (cables, power), Data Link (WiFi protocols), Network (IP configuration), Transport (TCP/UDP), and Application layers. Tools include WiFi analyzers (inSSIDer, WiFi Explorer), network scanners (Nmap, Advanced IP Scanner), protocol analyzers (Wireshark, tcpdump), performance testing (iperf, speedtest), signal strength meters, and spectrum analyzers for interference detection. Methodology includes identifying the problem scope and affected devices, checking physical layer, verifying network configuration, testing connectivity and performance, analyzing logs and error messages, implementing solutions systematically, and verifying fixes.",
+                "title": "Basic WiFi Troubleshooting Steps",
+                "content": "1) Restart your router (unplug for 30 seconds). 2) Check if other devices can connect. 3) Move closer to your router. 4) Try forgetting and reconnecting to WiFi. 5) Contact your internet provider if nothing works.",
                 "category": "troubleshooting",
                 "keywords": ["troubleshooting", "OSI model", "tools", "methodology", "analysis", "documentation"]
+            },
+            {
+                "title": "Quick Network Fix Checklist",
+                "content": "Check all cables are plugged in tightly. Verify router and modem have power with no red lights. Unplug router for 30 seconds, then plug back in. Try a different device to test if it's your device or the network.",
+                "category": "troubleshooting",
+                "keywords": ["checklist", "physical connections", "hardware status", "restart", "configuration", "connectivity tests", "ISP"]
+            },
+            {
+                "title": "Understanding Your Internet Speed",
+                "content": "Good speeds: 25+ Mbps for basic streaming, 50+ Mbps for HD video, 100+ Mbps for 4K. If speed is much lower than what you're paying for, restart your router, move closer to it, or use a wired connection.",
+                "category": "performance",
+                "keywords": ["bandwidth", "throughput", "latency", "jitter", "packet loss", "error rate", "RTT", "availability"]
+            },
+            {
+                "title": "WiFi Signal Quality Guide",
+                "content": "Check signal strength in WiFi settings - look for 3-4 bars. If only 1-2 bars, move closer to router or remove obstacles like walls and furniture. 5GHz is faster but doesn't reach as far as 2.4GHz.",
+                "category": "wifi_metrics",
+                "keywords": ["signal strength", "dBm", "SNR", "data transfer rate", "channel utilization", "interference", "coverage", "user density"]
             }
         ]
     
@@ -188,46 +207,57 @@ class SimpleSmartAI:
     def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
         """Generate conversational AI response using the loaded model"""
         try:
-            # Create context from network data and knowledge
-            context = self._create_ai_context(user_question, network_data, relevant_knowledge)
-
-            # Create a more conversational prompt
+            # Get the fallback response first
+            fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+            
+            # Create a prompt that asks the AI to say exactly what the fallback says
             wifi = network_data.get('wifi', {})
             connectivity = network_data.get('connectivity', {})
+            
+            prompt = f"""You are a network assistant. The user asked: "{user_question}"
+Network status: WiFi {'connected' if wifi.get('status') == 'connected' else 'not connected'}, Internet {'working' if connectivity.get('internet_connected') else 'not working'}.
 
-            # Build a conversational prompt
-            prompt = f"You are a helpful network assistant. User's network: WiFi {'connected' if wifi.get('status') == 'connected' else 'disconnected'}, Internet {'working' if connectivity.get('internet_connected') else 'not working'}. User asks: {user_question}. Respond like a friendly human assistant:"
+You must respond with exactly this message: "{fallback_response}"
+
+Response:"""
 
             # Tokenize input
-            inputs = self.tokenizer.encode(prompt, return_tensors="pt", max_length=200, truncation=True)
+            inputs = self.tokenizer.encode(prompt, return_tensors="pt", max_length=300, truncation=True)
 
             # Move inputs to the same device as the model
             device = next(self.model.parameters()).device
             inputs = inputs.to(device)
 
-            # Generate response
+            # Generate response with controlled parameters
             with torch.no_grad():
                 outputs = self.model.generate(
                     inputs,
                     max_new_tokens=100,
-                    temperature=0.8,
+                    temperature=0.1,  # Low temperature for more deterministic output
                     do_sample=True,
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    repetition_penalty=1.2
+                    repetition_penalty=1.1,
+                    top_p=0.9
                 )
             
             # Decode response
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Extract only the AI response part
-            if "Respond like a friendly human assistant:" in response:
-                ai_response = response.split("Respond like a friendly human assistant:")[-1].strip()
+            # Extract the AI response part
+            if "Response:" in response:
+                ai_response = response.split("Response:")[-1].strip()
                 # Clean up the response
-                ai_response = ai_response.replace("User asks:", "").strip()
+                ai_response = ai_response.replace("You must respond with exactly this message:", "").strip()
+                ai_response = ai_response.replace(f'"{fallback_response}"', "").strip()
+                
+                # If the AI response is too short or doesn't match, use fallback
+                if len(ai_response) < 10 or fallback_response not in ai_response:
+                    return fallback_response
+                
                 return ai_response
             else:
-                return response.strip()
+                return fallback_response
                 
         except Exception as e:
             logger.error(f"AI generation error: {e}")
@@ -266,8 +296,58 @@ class SimpleSmartAI:
         # Analyze the question and network state to give appropriate response
         question_lower = user_question.lower()
         
+        # If asking about problems but network is working (check this FIRST)
+        if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and wifi.get('status') == 'connected' and connectivity.get('internet_connected'):
+            logger.info(f"🔍 Debug: Question contains troubleshooting keywords, relevant_knowledge count: {len(relevant_knowledge) if relevant_knowledge else 0}")
+            
+            # Attempt automatic fixes first
+            logger.info("🔧 Attempting automatic fixes...")
+            fix_results = self.attempt_automatic_fix(user_question, network_data)
+            
+            response_parts = []
+            response_parts.append("🤔 I can see you're experiencing issues. Let me help you troubleshoot:")
+            
+            # Report automatic fix results
+            if fix_results['total_attempted'] > 0:
+                response_parts.append("\n**🔧 Automatic Fixes Attempted:**")
+                
+                if fix_results['total_successful'] > 0:
+                    response_parts.append("✅ **Successful fixes:**")
+                    for fix in fix_results['fixes_successful']:
+                        response_parts.append(f"• {fix}")
+                
+                if fix_results['total_failed'] > 0:
+                    response_parts.append("❌ **Failed fixes:**")
+                    for fix in fix_results['fixes_failed']:
+                        response_parts.append(f"• {fix}")
+                
+                if fix_results['total_successful'] > 0:
+                    response_parts.append(f"\n🎉 **Great! I successfully fixed {fix_results['total_successful']} issue(s) automatically!**")
+                    response_parts.append("Please try your network again and let me know if you need any more help.")
+                    return "\n".join(response_parts)
+            
+            # If no automatic fixes or they failed, provide knowledge-based suggestions
+            if relevant_knowledge:
+                response_parts.append("\n**📚 Additional Troubleshooting Tips:**")
+                
+                for knowledge in relevant_knowledge:
+                    response_parts.append(f"\n**{knowledge['title']}:**")
+                    # Make it more conversational
+                    content = knowledge['content']
+                    if 'Solutions include:' in content:
+                        solutions = content.split('Solutions include:')[1].strip()
+                        # Convert to conversational format
+                        solutions = solutions.replace('1)', '• ').replace('2)', '• ').replace('3)', '• ').replace('4)', '• ').replace('5)', '• ').replace('6)', '• ').replace('7)', '• ').replace('8)', '• ').replace('9)', '• ').replace('10)', '• ')
+                        response_parts.append(solutions)
+                    else:
+                        response_parts.append(content)
+                
+                return "\n".join(response_parts)
+            else:
+                return "🤔 Actually, your network looks good! Your WiFi is connected and internet is working. Are you experiencing any specific issues? I can help troubleshoot if you let me know what's bothering you."
+        
         # If asking about WiFi status and it's connected
-        if any(word in question_lower for word in ['wifi', 'network', 'connected', 'connection']) and wifi.get('status') == 'connected':
+        elif any(word in question_lower for word in ['wifi', 'network', 'connected', 'connection']) and wifi.get('status') == 'connected':
             ssid = wifi.get('ssid', 'your network')
             signal = wifi.get('signal_strength', 'unknown')
             
@@ -301,9 +381,6 @@ class SimpleSmartAI:
             else:
                 return "✅ Your internet connection is working well!"
         
-        # If asking about problems but network is working
-        elif any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad']) and wifi.get('status') == 'connected' and connectivity.get('internet_connected'):
-            return "🤔 Actually, your network looks good! Your WiFi is connected and internet is working. Are you experiencing any specific issues? I can help troubleshoot if you let me know what's bothering you."
         
         # If there are actual problems, provide solutions
         elif relevant_knowledge and (wifi.get('status') != 'connected' or not connectivity.get('internet_connected')):
@@ -366,14 +443,58 @@ class SimpleSmartAI:
         
         return "\n".join(analysis_parts)
     
-    def get_network_data(self) -> Dict[str, Any]:
-        """Get network data"""
-        return {
+    def get_network_data(self, user_question: str = "") -> Dict[str, Any]:
+        """Get network data with hybrid approach - fast core + smart additions"""
+        # Always collect core data (fast)
+        data = {
             "wifi": self.get_wifi_info(),
             "connectivity": self.get_connectivity_info(),
             "performance": self.get_performance_info(),
             "timestamp": time.time()
         }
+        
+        # Add smart data based on user question
+        if user_question:
+            data.update(self.get_smart_additional_data(user_question))
+        
+        return data
+    
+    def get_smart_additional_data(self, user_question: str) -> Dict[str, Any]:
+        """Smart data collection based on user question keywords"""
+        additional_data = {}
+        question_lower = user_question.lower()
+        
+        try:
+            # WiFi/Signal related questions
+            if any(word in question_lower for word in ['signal', 'strength', 'weak', 'poor', 'wifi', 'network']):
+                logger.info("🔍 Collecting detailed WiFi analysis...")
+                additional_data['wifi_detailed'] = self.get_detailed_wifi_analysis()
+            
+            # Speed/Performance related questions  
+            if any(word in question_lower for word in ['speed', 'slow', 'fast', 'bandwidth', 'performance', 'latency']):
+                logger.info("⚡ Collecting speed analysis...")
+                additional_data['speed_analysis'] = self.get_speed_analysis()
+            
+            # Security related questions
+            if any(word in question_lower for word in ['security', 'safe', 'encryption', 'password', 'vpn']):
+                logger.info("🔒 Collecting security analysis...")
+                additional_data['security_analysis'] = self.get_security_analysis()
+            
+            # Problem/Issue related questions
+            if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'trouble', 'error', 'fix']):
+                logger.info("🔧 Collecting diagnostic data...")
+                additional_data['diagnostics'] = self.get_network_diagnostics()
+            
+            # Comprehensive analysis requests
+            if any(word in question_lower for word in ['comprehensive', 'detailed', 'full', 'complete', 'everything']):
+                logger.info("📊 Collecting comprehensive analysis...")
+                additional_data['comprehensive'] = self.get_comprehensive_analysis()
+                
+        except Exception as e:
+            logger.error(f"Error in smart data collection: {e}")
+            additional_data['collection_error'] = str(e)
+        
+        return additional_data
     
     def get_wifi_info(self) -> Dict[str, Any]:
         """Get WiFi information"""
@@ -695,12 +816,150 @@ class SimpleSmartAI:
             
             return "📊 **Current Network Status:**\n\n" + "\n".join(status_parts)
     
+    def attempt_automatic_fix(self, user_question: str, network_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Attempt to automatically fix issues using bash_cmd functions"""
+        try:
+            question_lower = user_question.lower()
+            fixes_attempted = []
+            fixes_successful = []
+            fixes_failed = []
+            
+            # WiFi connection issues
+            if any(word in question_lower for word in ['connect', 'connection', 'disconnect', 'drop', 'unstable']):
+                logger.info("🔧 Attempting to fix connection issues...")
+                
+                # Try resetting WiFi adapter
+                try:
+                    result = bash_cmd.reset_wifi_adapter()
+                    fixes_attempted.append("Reset WiFi adapter")
+                    if "reset" in result.lower():
+                        fixes_successful.append("WiFi adapter reset")
+                    else:
+                        fixes_failed.append("WiFi adapter reset failed")
+                except Exception as e:
+                    fixes_failed.append(f"WiFi adapter reset error: {e}")
+                
+                # Try restarting network stack
+                try:
+                    result = bash_cmd.restart_network_stack()
+                    fixes_attempted.append("Restart network stack")
+                    if "restarted" in result.lower():
+                        fixes_successful.append("Network stack restarted")
+                    else:
+                        fixes_failed.append("Network stack restart failed")
+                except Exception as e:
+                    fixes_failed.append(f"Network stack restart error: {e}")
+            
+            # DNS/Internet issues
+            if any(word in question_lower for word in ['dns', 'internet', 'website', 'browser', 'slow']):
+                logger.info("🌐 Attempting to fix DNS/Internet issues...")
+                
+                # Try flushing DNS cache
+                try:
+                    result = bash_cmd.flush_dns_cache()
+                    fixes_attempted.append("Flush DNS cache")
+                    if "flushed" in result.lower():
+                        fixes_successful.append("DNS cache flushed")
+                    else:
+                        fixes_failed.append("DNS cache flush failed")
+                except Exception as e:
+                    fixes_failed.append(f"DNS cache flush error: {e}")
+                
+                # Try restarting DNS service
+                try:
+                    result = bash_cmd.restart_dns_service()
+                    fixes_attempted.append("Restart DNS service")
+                    if "restarted" in result.lower():
+                        fixes_successful.append("DNS service restarted")
+                    else:
+                        fixes_failed.append("DNS service restart failed")
+                except Exception as e:
+                    fixes_failed.append(f"DNS service restart error: {e}")
+                
+                # Try releasing and renewing IP
+                try:
+                    result = bash_cmd.release_renew_ip()
+                    fixes_attempted.append("Release/renew IP address")
+                    if "released" in result.lower():
+                        fixes_successful.append("IP address renewed")
+                    else:
+                        fixes_failed.append("IP address renewal failed")
+                except Exception as e:
+                    fixes_failed.append(f"IP address renewal error: {e}")
+            
+            # Signal strength issues
+            if any(word in question_lower for word in ['signal', 'weak', 'poor', 'bars', 'strength']):
+                logger.info("📶 Attempting to fix signal issues...")
+                
+                # Try switching T-Mobile bands
+                try:
+                    current_band = bash_cmd.identify_band()
+                    if current_band == "2.4 GHz":
+                        result = bash_cmd.connect_tmobile_5g()
+                        fixes_attempted.append("Switch to T-Mobile 5G")
+                        if "connected" in result.lower():
+                            fixes_successful.append("Switched to T-Mobile 5G")
+                        else:
+                            fixes_failed.append("Failed to switch to T-Mobile 5G")
+                    elif current_band == "5 GHz":
+                        result = bash_cmd.connect_tmobile_2g()
+                        fixes_attempted.append("Switch to T-Mobile 2.4GHz")
+                        if "connected" in result.lower():
+                            fixes_successful.append("Switched to T-Mobile 2.4GHz")
+                        else:
+                            fixes_failed.append("Failed to switch to T-Mobile 2.4GHz")
+                except Exception as e:
+                    fixes_failed.append(f"Band switching error: {e}")
+            
+            # General network issues
+            if any(word in question_lower for word in ['problem', 'issue', 'trouble', 'help', 'fix']):
+                logger.info("🔧 Attempting general network fixes...")
+                
+                # Try reloading network modules
+                try:
+                    result = bash_cmd.reload_network_modules()
+                    fixes_attempted.append("Reload network modules")
+                    if "reloaded" in result.lower():
+                        fixes_successful.append("Network modules reloaded")
+                    else:
+                        fixes_failed.append("Network module reload failed")
+                except Exception as e:
+                    fixes_failed.append(f"Network module reload error: {e}")
+            
+            return {
+                "fixes_attempted": fixes_attempted,
+                "fixes_successful": fixes_successful,
+                "fixes_failed": fixes_failed,
+                "total_attempted": len(fixes_attempted),
+                "total_successful": len(fixes_successful),
+                "total_failed": len(fixes_failed)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in automatic fix attempt: {e}")
+            return {
+                "fixes_attempted": [],
+                "fixes_successful": [],
+                "fixes_failed": [f"Automatic fix system error: {e}"],
+                "total_attempted": 0,
+                "total_successful": 0,
+                "total_failed": 1
+            }
+    
     def chat(self, message: str) -> Dict[str, Any]:
         """Main chat function with RAG + AI model"""
         logger.info(f"User question: {message}")
         
-        # Get network data
-        network_data = self.get_network_data()
+        # Get network data with smart collection based on question
+        network_data = self.get_network_data(message)
+        
+        # Attempt automatic fixes for troubleshooting questions
+        fix_results = None
+        question_lower = message.lower()
+        if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']):
+            logger.info("🔧 Attempting automatic fixes...")
+            fix_results = self.attempt_automatic_fix(message, network_data)
+            network_data['automatic_fixes'] = fix_results
         
         # Generate AI response using RAG + model
         response = self.generate_ai_response(message, network_data)
@@ -711,8 +970,242 @@ class SimpleSmartAI:
             "network_data": network_data,
             "request_id": f"req_{int(time.time() * 1000)}",
             "ai_model_used": self.model is not None,
-            "rag_enabled": self.vectorizer is not None
+            "rag_enabled": self.vectorizer is not None,
+            "automatic_fixes_attempted": fix_results is not None,
+            "fixes_successful": fix_results['total_successful'] if fix_results else 0,
+            "fixes_failed": fix_results['total_failed'] if fix_results else 0
         }
+    
+    def get_detailed_wifi_analysis(self) -> Dict[str, Any]:
+        """Get detailed WiFi analysis for signal-related questions"""
+        try:
+            analysis = {
+                "available_networks": [],
+                "signal_quality": "unknown",
+                "interference_sources": [],
+                "recommendations": []
+            }
+            
+            system = platform.system()
+            
+            if system == "Darwin":  # macOS
+                # Get available networks
+                try:
+                    result = subprocess.run(['networksetup', '-listallhardwareports'], 
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        analysis["network_interfaces"] = result.stdout
+                except:
+                    pass
+                
+                # Get WiFi scan (if available)
+                try:
+                    scan_result = subprocess.run(['system_profiler', 'SPAirPortDataType'], 
+                                               capture_output=True, text=True, timeout=10)
+                    if scan_result.returncode == 0:
+                        analysis["wifi_details"] = scan_result.stdout
+                except:
+                    pass
+            
+            elif system == "Linux":
+                # Get WiFi scan
+                try:
+                    scan_result = subprocess.run(['iwlist', 'scan'], 
+                                               capture_output=True, text=True, timeout=10)
+                    if scan_result.returncode == 0:
+                        analysis["wifi_scan"] = scan_result.stdout
+                except:
+                    pass
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in detailed WiFi analysis: {e}")
+            return {"error": str(e)}
+    
+    def get_speed_analysis(self) -> Dict[str, Any]:
+        """Get speed analysis for performance-related questions"""
+        try:
+            analysis = {
+                "speed_tests": {},
+                "latency_tests": {},
+                "bandwidth_utilization": "unknown"
+            }
+            
+            # Multiple latency tests
+            latency_targets = ["8.8.8.8", "1.1.1.1", "google.com"]
+            for target in latency_targets:
+                try:
+                    result = subprocess.run(['ping', '-c', '3', target], 
+                                          capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        latency_match = re.search(r'time=([0-9.]+)', result.stdout)
+                        if latency_match:
+                            analysis["latency_tests"][target] = f"{latency_match.group(1)}ms"
+                except:
+                    analysis["latency_tests"][target] = "timeout"
+            
+            # Get network interface speeds
+            try:
+                interfaces = psutil.net_if_stats()
+                analysis["interface_speeds"] = {}
+                for interface, stats in interfaces.items():
+                    if stats.isup:
+                        analysis["interface_speeds"][interface] = {
+                            "speed": stats.speed,
+                            "duplex": stats.duplex
+                        }
+            except:
+                pass
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in speed analysis: {e}")
+            return {"error": str(e)}
+    
+    def get_security_analysis(self) -> Dict[str, Any]:
+        """Get security analysis for security-related questions"""
+        try:
+            analysis = {
+                "dns_servers": [],
+                "firewall_status": "unknown",
+                "vpn_connections": [],
+                "encryption_info": "unknown"
+            }
+            
+            # Get DNS servers
+            try:
+                if platform.system() == "Darwin":
+                    result = subprocess.run(['networksetup', '-getdnsservers', 'Wi-Fi'], 
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        analysis["dns_servers"] = result.stdout.strip().split('\n')
+                elif platform.system() == "Linux":
+                    with open('/etc/resolv.conf', 'r') as f:
+                        dns_content = f.read()
+                        analysis["dns_servers"] = dns_content
+            except:
+                pass
+            
+            # Check for VPN connections
+            try:
+                connections = psutil.net_connections()
+                vpn_connections = []
+                for conn in connections:
+                    if conn.status == 'ESTABLISHED' and conn.raddr:
+                        # Simple heuristic for VPN detection
+                        if any(port in [443, 1194, 1723, 500, 4500] for port in [conn.laddr.port, conn.raddr.port]):
+                            vpn_connections.append(f"{conn.laddr.ip}:{conn.laddr.port} -> {conn.raddr.ip}:{conn.raddr.port}")
+                analysis["vpn_connections"] = vpn_connections
+            except:
+                pass
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in security analysis: {e}")
+            return {"error": str(e)}
+    
+    def get_network_diagnostics(self) -> Dict[str, Any]:
+        """Get diagnostic data for problem-related questions"""
+        try:
+            diagnostics = {
+                "network_interfaces": [],
+                "routing_table": "unknown",
+                "dns_resolution": {},
+                "connectivity_tests": {}
+            }
+            
+            # Get all network interfaces
+            try:
+                interfaces = psutil.net_if_addrs()
+                for interface, addresses in interfaces.items():
+                    interface_info = {"name": interface, "addresses": []}
+                    for addr in addresses:
+                        interface_info["addresses"].append({
+                            "family": str(addr.family),
+                            "address": addr.address,
+                            "netmask": addr.netmask
+                        })
+                    diagnostics["network_interfaces"].append(interface_info)
+            except:
+                pass
+            
+            # Test DNS resolution
+            dns_targets = ["google.com", "cloudflare.com", "github.com"]
+            for target in dns_targets:
+                try:
+                    ip = socket.gethostbyname(target)
+                    diagnostics["dns_resolution"][target] = ip
+                except:
+                    diagnostics["dns_resolution"][target] = "failed"
+            
+            # Connectivity tests
+            test_urls = ["http://google.com", "https://google.com", "http://cloudflare.com"]
+            for url in test_urls:
+                try:
+                    response = requests.get(url, timeout=5)
+                    diagnostics["connectivity_tests"][url] = f"HTTP {response.status_code}"
+                except Exception as e:
+                    diagnostics["connectivity_tests"][url] = f"Error: {str(e)[:50]}"
+            
+            return diagnostics
+            
+        except Exception as e:
+            logger.error(f"Error in network diagnostics: {e}")
+            return {"error": str(e)}
+    
+    def get_comprehensive_analysis(self) -> Dict[str, Any]:
+        """Get comprehensive analysis for detailed requests"""
+        try:
+            comprehensive = {
+                "system_info": {},
+                "network_topology": {},
+                "performance_metrics": {},
+                "security_audit": {}
+            }
+            
+            # System information
+            try:
+                comprehensive["system_info"] = {
+                    "platform": platform.system(),
+                    "platform_version": platform.version(),
+                    "architecture": platform.architecture(),
+                    "hostname": socket.gethostname(),
+                    "cpu_count": psutil.cpu_count(),
+                    "memory_total": psutil.virtual_memory().total,
+                    "boot_time": psutil.boot_time()
+                }
+            except:
+                pass
+            
+            # Network topology
+            try:
+                comprehensive["network_topology"] = {
+                    "all_interfaces": list(psutil.net_if_addrs().keys()),
+                    "active_connections": len(psutil.net_connections()),
+                    "network_io": dict(psutil.net_io_counters()._asdict())
+                }
+            except:
+                pass
+            
+            # Performance metrics
+            try:
+                comprehensive["performance_metrics"] = {
+                    "cpu_percent": psutil.cpu_percent(interval=1),
+                    "memory_percent": psutil.virtual_memory().percent,
+                    "disk_io": dict(psutil.disk_io_counters()._asdict()) if psutil.disk_io_counters() else {},
+                    "network_io": dict(psutil.net_io_counters()._asdict())
+                }
+            except:
+                pass
+            
+            return comprehensive
+            
+        except Exception as e:
+            logger.error(f"Error in comprehensive analysis: {e}")
+            return {"error": str(e)}
 
 # Test the simple smart AI
 if __name__ == "__main__":
