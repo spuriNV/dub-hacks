@@ -4,16 +4,124 @@
 # - Settings (API URL, Voice mode)
 # - Network/Internet/Performance status panels
 # - Chat history (user/assistant), AI call to /chat, optional audio_url playback
-# - Suggestions, error display, mic (simulated) + audio upload
-# - Glassmorphism styling, gradient background, icons(ish)
+# - Real voice recording with Whisper transcription
+# - Glassmorphism styling, gradient background, modern UI
 
 import time
 import json
+import os
+import subprocess
 from datetime import datetime
 from typing import List, Dict, Optional
 
 import requests
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder
+
+# -----------------------------
+# Voice Recording & Transcription Functions
+# -----------------------------
+def save_audio_recording(audio_bytes):
+    """Save audio recording to recordings folder"""
+    try:
+        recordings_dir = os.path.join(os.path.dirname(__file__), "recordings")
+        os.makedirs(recordings_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"recording_{timestamp}.wav"
+        filepath = os.path.join(recordings_dir, filename)
+        
+        with open(filepath, "wb") as f:
+            f.write(audio_bytes)
+        
+        return filepath, filename
+    except Exception as e:
+        st.session_state.error = f"Error saving recording: {e}"
+        return None, None
+
+
+def convert_to_wav_16khz(input_file):
+    """Convert audio to 16kHz WAV format for whisper.cpp"""
+    try:
+        base_name = os.path.splitext(input_file)[0]
+        output_file = f"{base_name}_16khz.wav"
+        
+        cmd = [
+            "ffmpeg",
+            "-i", input_file,
+            "-ar", "16000",
+            "-ac", "1",
+            "-c:a", "pcm_s16le",
+            "-y",
+            output_file
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            return output_file
+        else:
+            st.session_state.error = f"FFmpeg error: {result.stderr}"
+            return None
+    except Exception as e:
+        st.session_state.error = f"Error converting audio: {e}"
+        return None
+
+
+def transcribe_with_whisper(audio_file):
+    """Transcribe audio using whisper.cpp"""
+    try:
+        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
+        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
+        
+        transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
+        os.makedirs(transcriptions_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_base = os.path.join(transcriptions_dir, f"transcription_{timestamp}")
+        
+        cmd = [
+            whisper_cli,
+            "-m", model_path,
+            "-f", audio_file,
+            "--output-txt",
+            "--output-file", output_base,
+            "-l", "en",
+            "--no-timestamps"
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            txt_file = f"{output_base}.txt"
+            if os.path.exists(txt_file):
+                with open(txt_file, 'r') as f:
+                    transcription = f.read().strip()
+                return transcription, txt_file
+            else:
+                st.session_state.error = "Transcription file not found"
+                return None, None
+        else:
+            st.session_state.error = f"Whisper error: {result.stderr}"
+            return None, None
+    except Exception as e:
+        st.session_state.error = f"Error transcribing audio: {e}"
+        return None, None
+
+
+def process_voice_input(audio_bytes):
+    """Process voice input: save → convert → transcribe"""
+    filepath, filename = save_audio_recording(audio_bytes)
+    if not filepath:
+        return None
+    
+    converted_file = convert_to_wav_16khz(filepath)
+    if not converted_file:
+        return None
+    
+    transcription, txt_file = transcribe_with_whisper(converted_file)
+    return transcription
+
 
 # -----------------------------
 # Page + Global Styling (Layout)
@@ -103,6 +211,12 @@ if "error" not in st.session_state:
 if "chat_input_text" not in st.session_state:
     st.session_state.chat_input_text = ""
 
+if "last_audio_url" not in st.session_state:
+    st.session_state.last_audio_url = None
+
+if "pending_audio" not in st.session_state:
+    st.session_state.pending_audio = None
+
 
 # -----------------------------
 # Data access helpers (mutations)
@@ -132,7 +246,7 @@ def fetch_network_status():
     if not api:
         return
     try:
-        r = requests.get(f"{api}/network-status", timeout=4)
+        r = requests.get(f"{api}/network-status", timeout=30)
         if r.ok:
             data = r.json()
             st.session_state.network_data = data.get("network_data")
@@ -145,7 +259,7 @@ def fetch_ai_status():
     if not api:
         return
     try:
-        r = requests.get(f"{api}/ai-status", timeout=4)
+        r = requests.get(f"{api}/ai-status", timeout=30)
         if r.ok:
             st.session_state.ai_data = r.json()
     except Exception:
@@ -166,7 +280,7 @@ def send_to_ai_brain(message: str, generate_audio: bool):
             "message": message,
             "generate_audio": generate_audio
         }),
-        timeout=10
+        timeout=120
     )
     if not r.ok:
         raise RuntimeError(f"AI server error: {r.status_code}")
@@ -302,6 +416,77 @@ def component_performance_status(network_data: Optional[Dict]):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def component_ai_status(ai_data: Optional[Dict]):
+    """Display AI brain status"""
+    icon = "🧠"
+    badge_color = {"good": "#4ade80", "warning": "#fbbf24", "error": "#f87171"}
+    
+    if not ai_data:
+        st.markdown(f"""
+        <div class="glass" style="padding:16px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.10);
+                 border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+              <div style="font-size:18px">{icon}</div>
+            </div>
+            <div style="flex:1"><div class="card-title">AI Brain Status</div></div>
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+            background:{badge_color['error']};box-shadow:0 0 10px {badge_color['error']};"></span>
+          </div>
+          <div class="small" style="color:#fecaca">Unable to connect to AI brain</div>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    ai_model = ai_data.get('ai_model_loaded', False)
+    rag_enabled = ai_data.get('rag_enabled', False)
+    knowledge_size = ai_data.get('knowledge_base_size', 0)
+    tts_available = ai_data.get('tts_available', False)
+    
+    dot_status = "good" if ai_model else "warning"
+    dot_color = badge_color[dot_status]
+    
+    st.markdown(f"""
+    <div class="glass" style="padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.10);
+             border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <div style="font-size:18px">{icon}</div>
+        </div>
+        <div style="flex:1"><div class="card-title">AI Brain Status</div></div>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+        background:{dot_color};box-shadow:0 0 10px {dot_color};"></span>
+      </div>
+    """, unsafe_allow_html=True)
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**AI Model:**")
+    with c2:
+        st.markdown(f"{'distilgpt2' if ai_model else 'Rule-based'}")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**RAG Knowledge:**")
+    with c2:
+        st.markdown(f"{'Enabled' if rag_enabled else 'Disabled'}")
+    
+    if rag_enabled:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**KB Size:**")
+        with c2:
+            st.markdown(f"{knowledge_size} items")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**TTS (Piper):**")
+    with c2:
+        st.markdown(f"{'Available' if tts_available else 'N/A'}")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def component_settings_panel(settings: Dict):
     icon = "⚙️"
     
@@ -393,11 +578,49 @@ def component_message_bubble(message: Dict, index: int):
             try:
                 st.audio(audio_url)
             except Exception:
-                st.markdown(f"<div class='small' style='color:#fecaca'>Audio unavailable: {audio_url}</div>",
+                st.markdown(f"""<div class="small" style="color:#fecaca">Audio unavailable: {audio_url}</div>""",
                           unsafe_allow_html=True)
+        
+        # Show AI analysis details in expandable section
+        if role == "assistant":
+            if ai_model_used or rag_enabled:
+                with st.expander("🧠 AI Brain Analysis Details", expanded=False):
+                    if ai_model_used:
+                        st.write("**AI Model:** distilgpt2 (Used)")
+                    if rag_enabled:
+                        st.write("**RAG Knowledge:** Enabled")
+                    if audio_url:
+                        st.write("**Voice Response:** Available")
 
 
 def component_chat_input(on_send, on_voice, is_processing: bool):
+    # Voice input with audio recorder
+    st.markdown('<div style="margin-bottom: 10px;">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 5])
+    
+    with col1:
+        st.markdown("**🎤 Voice:**")
+        audio_bytes = audio_recorder(
+            text="",
+            recording_color="#e74c3c",
+            neutral_color="#3498db",
+            icon_name="microphone",
+            icon_size="2x",
+            key="voice_input"
+        )
+        
+        # Auto-process voice input when new recording detected
+        if audio_bytes and audio_bytes != st.session_state.pending_audio:
+            st.session_state.pending_audio = audio_bytes
+            on_voice(audio_bytes)
+            st.rerun()
+    
+    with col2:
+        st.markdown("**💬 Text:**")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
     # Text area with proper key management
     msg = st.text_area("",
                       value=st.session_state.chat_input_text,
@@ -408,7 +631,7 @@ def component_chat_input(on_send, on_voice, is_processing: bool):
                       help="Type your message here",
                       height=110)
     
-    c1, c2, c3 = st.columns([2,2,4])
+    c1, c2 = st.columns([2, 6])
     
     with c1:
         if st.button("📨 Send", 
@@ -418,23 +641,7 @@ def component_chat_input(on_send, on_voice, is_processing: bool):
             st.session_state.chat_input_text = ""
             st.rerun()
     
-    with c2:
-        if st.button("⏺️ Record (sim)" if not is_processing else "Processing...",
-                    disabled=is_processing,
-                    use_container_width=True):
-            on_voice("SIMULATED_RECORDING")
-            st.rerun()
-    
-    with c3:
-        uploaded = st.file_uploader("Upload audio", 
-                                   type=["mp3","wav","m4a","ogg","webm"], 
-                                   label_visibility="collapsed",
-                                   key="audio_upload")
-        if uploaded is not None and st.button("🗣️ Transcribe", use_container_width=True):
-            on_voice(uploaded)
-            st.rerun()
-    
-    st.markdown('<div class="small">Type your message and press Send • Use Record for voice input (simulated) • Upload audio files for transcription</div>',
+    st.markdown('<div class="small">Type your message and press Send • Use the microphone button above for voice input • Voice will auto-transcribe and send</div>',
                 unsafe_allow_html=True)
 
 
@@ -478,15 +685,20 @@ def handle_send_message(content: str):
         st.session_state.is_processing = False
 
 
-def handle_voice_input(source):
+def handle_voice_input(audio_bytes):
+    """Process real voice input with Whisper transcription"""
     st.session_state.is_processing = True
     st.session_state.error = None
     
     try:
-        # Simulated transcription
-        time.sleep(1)
-        transcription = "This is a simulated voice transcription. In production, this would use Whisper or a similar service."
-        handle_send_message(transcription)
+        # Process voice input (save, convert, transcribe)
+        transcription = process_voice_input(audio_bytes)
+        
+        if transcription:
+            # Send transcribed message to AI
+            handle_send_message(transcription)
+        else:
+            st.session_state.error = "Failed to transcribe voice input. Please try again."
     except Exception as e:
         st.session_state.error = f"Failed to process voice input: {str(e)}"
     finally:
@@ -546,11 +758,12 @@ def dashboard():
         component_network_status(st.session_state.network_data)
         component_internet_status(st.session_state.network_data)
         component_performance_status(st.session_state.network_data)
+        component_ai_status(st.session_state.ai_data)
         component_suggestions(lambda s: handle_send_message(s))
     
     with right:
         # Chat panel
-        st.markdown('<div class="glass" style="padding:18px;min-height:600px;">',
+        st.markdown('<div class="glass" style="padding:18px;min-height:500px;max-height:500px;overflow-y:auto;">',
                    unsafe_allow_html=True)
         
         if len(st.session_state.messages) == 0 and not st.session_state.is_processing:
@@ -576,8 +789,8 @@ def dashboard():
         
         # Processing indicator
         if st.session_state.is_processing:
-            with st.spinner("AI brain is analyzing..."):
-                time.sleep(0.1)
+            st.markdown('<div class="small" style="text-align:center;padding:20px;">🧠 AI brain is analyzing your network...</div>', 
+                       unsafe_allow_html=True)
         
         # Error alert
         if st.session_state.error:
