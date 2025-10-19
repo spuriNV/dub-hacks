@@ -1,367 +1,530 @@
+#!/usr/bin/env python3
+"""
+Simple Smart AI Chatbot UI
+Streamlit interface for the AI brain
+"""
+
 import streamlit as st
 import requests
 import json
-import re, html
+import time
+import os
+import subprocess
 from datetime import datetime
+from audio_recorder_streamlit import audio_recorder
 
-# ---------- Page ----------
+# Configure Streamlit page
 st.set_page_config(
-    page_title="IT-Mobile",
-    page_icon="🧠",
+    page_title="AI Network Brain",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------- THEME & CSS (Vercel ai-chatbot-inspired) ----------
+# Custom CSS for better UI
 st.markdown("""
 <style>
-/* Font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-html, body, [data-testid="stAppViewContainer"]{
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
-}
-
-/* Colors */
-:root{
-  --bg:#0a0a0b; --panel:#111214; --muted:#9aa3ae; --text:#eceff4; --soft:#1b1d22;
-  --brand: linear-gradient(90deg,#06b6d4 0%, #8b5cf6 50%, #ec4899 100%);
-  --ring: rgba(139,92,246,0.4);
-}
-html, body, [data-testid="stAppViewContainer"]{ background: var(--bg); color: var(--text); }
-[data-testid="stHeader"] { background: transparent; }
-.block-container{ padding-top: 1.2rem; }
-
-/* Top nav */
-.nav-wrap{
-  width: 100%; display:flex; justify-content:center; position: sticky; top:0; z-index:10;
-  backdrop-filter: blur(10px); background: rgba(10,10,11,0.55);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-.nav-inner{ width: min(880px, 92vw); display:flex; align-items:center; gap:.75rem; padding:.6rem 0; }
-.badge{ font-size:.75rem; padding:.25rem .5rem; border-radius:.5rem; background: rgba(255,255,255,0.06); color:var(--muted); border:1px solid rgba(255,255,255,0.08); }
-
-/* Hero */
-.hero{ width:100%; display:flex; justify-content:center; margin: 10px 0 18px 0; }
-.hero-inner{
-  width:min(880px, 92vw); background: var(--panel); border:1px solid rgba(255,255,255,0.08);
-  padding: 16px 18px; border-radius: 14px; position:relative; overflow:hidden;
-}
-.hero-inner:before{
-  content:""; position:absolute; inset:0; pointer-events:none;
-  background: radial-gradient(1000px 300px at -10% -40%, rgba(139,92,246,.18), transparent 60%),
-              radial-gradient(600px 300px at 120% -20%, rgba(6,182,212,.20), transparent 60%);
-}
-.brand-title{ font-weight:700; letter-spacing:.3px; font-size:1.15rem; display:flex; align-items:center; gap:.5rem;
-  background: var(--brand); -webkit-background-clip: text; background-clip:text; color: transparent; }
-.subtle{ color: var(--muted); }
-
-/* Chat */
-.chat-wrap{ width:100%; display:flex; justify-content:center; margin-top:.5rem; }
-.chat-inner{ width:min(880px, 92vw); }
-.msg{ display:flex; gap:.75rem; margin: 10px 0; padding: 10px 12px; border-radius: 14px; border:1px solid rgba(255,255,255,0.08); position:relative; }
-.msg.assistant{ background: rgba(255,255,255,0.03); }
-.msg.user{
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-}
-.avatar{
-  width:34px; height:34px; border-radius: 10px; display:flex; align-items:center; justify-content:center;
-  background: var(--soft); border:1px solid rgba(255,255,255,0.08); flex:0 0 auto; font-size: 18px;
-}
-.bubble{ width:100%; }
-.bubble .role{ font-size:.8rem; color:var(--muted); margin-bottom:4px; }
-.bubble .content{ line-height:1.6; }
-.bubble code, .bubble pre{
-  background: #0f1115; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:.2rem .35rem;
-}
-.bubble pre { padding: .75rem .9rem; overflow:auto; }
-
-/* Footer */
-.footer{ width:100%; display:flex; justify-content:center; margin-top: 8px; color: var(--muted); font-size:.85rem; }
-
-/* Composer — removed outer border to avoid “double bar” */
-.input-wrap{ position:sticky; bottom: 10px; width:100%; display:flex; justify-content:center; margin-top: 6px; }
-.input-inner{ width:min(880px, 92vw); background: transparent; border-radius: 14px; padding: 6px; border: none; }
-.input-row{
-  display:flex; gap:8px; align-items:center; background: #0f1115;
-  border:1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 8px 10px; outline: 1.5px solid transparent;
-}
-.input-row:focus-within{ outline-color: var(--ring); }
-.input-row textarea{ background: transparent !important; color: var(--text) !important; }
-.btn{
-  padding: 7px 10px; border-radius: 10px; border:1px solid rgba(255,255,255,0.12);
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); color: var(--text); cursor: pointer;
-}
-.btn:hover{ background: rgba(255,255,255,0.06); }
-.typing{ display:inline-flex; gap:4px; align-items:center; margin-left: 3px; }
-.dot{ width:6px; height:6px; background:#cbd5e1; border-radius:50%; animation: bounce 1.1s infinite ease-in-out; }
-.dot:nth-child(2){ animation-delay: .15s } .dot:nth-child(3){ animation-delay: .3s }
-@keyframes bounce{ 0%, 80%, 100%{ transform: translateY(0); opacity:.5;} 40%{ transform: translateY(-4px); opacity:1;} }
-
-/* Sidebar — prettier cards */
-.sidebar-card{
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border:1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; margin-bottom: 12px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-}
-.sidebar-title{ font-weight:700; margin-bottom: 6px; letter-spacing:.2px; }
-.sidebar-row{ display:flex; align-items:center; justify-content:space-between; margin:6px 0; }
-.sidebar-left{ display:flex; align-items:center; gap:8px; }
-.status-dot{ display:inline-block; width:10px; height:10px; border-radius:50%; }
-.good { background:#22c55e; } .warn { background:#f59e0b; } .err { background:#ef4444; } .muted { background:#64748b; }
-
-/* Hide default chat chrome */
-div[data-testid="stChatMessage"] { background: transparent; border: none; }
+    .chat-message {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: flex-start;
+    }
+    .chat-message.user {
+        background-color: #2b313e;
+        color: white;
+    }
+    .chat-message.assistant {
+        background-color: #f0f2f6;
+        color: black;
+    }
+    .chat-message .avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        margin-right: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+    .network-status {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+    }
+    .status-good { background-color: #4CAF50; }
+    .status-warning { background-color: #FF9800; }
+    .status-error { background-color: #F44336; }
+    .ai-brain {
+        background: linear-gradient(90deg, #ff6b6b 0%, #4ecdc4 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    .voice-input-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Session State ----------
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
 if "api_url" not in st.session_state:
     st.session_state.api_url = "http://localhost:8088"
 
-# ---------- API helpers ----------
+if "voice_mode_enabled" not in st.session_state:
+    st.session_state.voice_mode_enabled = False
+
+if "last_audio_url" not in st.session_state:
+    st.session_state.last_audio_url = None
+
+if "pending_audio" not in st.session_state:
+    st.session_state.pending_audio = None
+
 def get_network_status():
+    """Get current network status from AI brain"""
     try:
-        resp = requests.get(f"{st.session_state.api_url}/network-status", timeout=10)
-        return resp.json() if resp.status_code == 200 else None
+        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
+        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        return None
     except Exception as e:
-        st.sidebar.error(f"Network status error: {e}")
+        st.error(f"Network status error: {e}")
         return None
 
 def get_ai_status():
+    """Get AI brain status"""
     try:
-        resp = requests.get(f"{st.session_state.api_url}/ai-status", timeout=10)
-        return resp.json() if resp.status_code == 200 else None
+        response = requests.get(f"{st.session_state.api_url}/ai-status", timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        return None
     except Exception as e:
-        st.sidebar.error(f"AI status error: {e}")
+        st.error(f"AI status error: {e}")
         return None
 
-def send_chat_message(message: str):
+def send_chat_message(message, generate_audio=False):
+    """Send message to AI brain and get response"""
     try:
-        resp = requests.post(f"{st.session_state.api_url}/chat", json={"message": message}, timeout=30)
-        return resp.json() if resp.status_code == 200 else None
+        response = requests.post(
+            f"{st.session_state.api_url}/chat",
+            json={"message": message, "generate_audio": generate_audio},
+            timeout=120
+        )
+        if response.status_code == 200:
+            return response.json()
+        return None
     except Exception as e:
         st.error(f"Error connecting to AI brain: {e}")
         return None
 
-# ---------- Minimal Markdown→HTML (no stray asterisks) ----------
-_bold = re.compile(r"\*\*(.+?)\*\*")
-_ital = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
-_code = re.compile(r"`([^`]+)`")
-def md_to_html(txt: str) -> str:
-    # escape HTML first
-    s = html.escape(txt)
-    # inline code
-    s = _code.sub(r"<code>\\1</code>", s)
-    # bold then italics
-    s = _bold.sub(r"<strong>\\1</strong>", s)
-    s = _ital.sub(r"<em>\\1</em>", s)
-    # line breaks
-    s = s.replace("\n", "<br>")
-    return s
+def display_network_status():
+    """Display current network status in sidebar"""
+    st.sidebar.markdown("### 📊 Network Status")
 
-# ---------- Sidebar ----------
-with st.sidebar:
-    st.markdown('<div class="sidebar-card"><div class="sidebar-title">🔧 Settings</div>', unsafe_allow_html=True)
-    api_url = st.text_input("API URL", value=st.session_state.api_url, help="URL of the AI brain API server")
-    reset = st.button("Clear Chat History")
-    st.markdown('</div>', unsafe_allow_html=True)
+    network_data = get_network_status()
+    if network_data:
+        wifi = network_data.get('network_data', {}).get('wifi', {})
+        connectivity = network_data.get('network_data', {}).get('connectivity', {})
+        performance = network_data.get('network_data', {}).get('performance', {})
 
-    if api_url != st.session_state.api_url:
-        st.session_state.api_url = api_url
-        st.rerun()
-    if reset:
-        st.session_state.messages = []
-        st.success("Chat history cleared.")
-
-    # Network Status
-    st.markdown('<div class="sidebar-card"><div class="sidebar-title">📊 Network Status</div>', unsafe_allow_html=True)
-    net = get_network_status()
-    if net:
-        wifi = net.get('network_data', {}).get('wifi', {})
-        conn = net.get('network_data', {}).get('connectivity', {})
-        perf = net.get('network_data', {}).get('performance', {})
-
+        # WiFi Status
         wifi_status = wifi.get('status', 'unknown')
         wifi_ssid = wifi.get('ssid', 'Unknown')
-        signal = wifi.get('signal_strength', 'unknown')
-        dot = "good" if wifi_status == "connected" else ("warn" if wifi_status == "unknown" else "err")
-        st.markdown(f"""
-        <div class="sidebar-row">
-          <div class="sidebar-left"><span class="status-dot {dot}"></span><strong>Wi-Fi</strong></div>
-          <div>{'Connected' if wifi_status=='connected' else ('Unknown' if wifi_status=='unknown' else 'Not Connected')}</div>
-        </div>
-        <div class="subtle">SSID: {html.escape(str(wifi_ssid))} • Signal: {html.escape(str(signal))} dBm</div>
-        """, unsafe_allow_html=True)
+        signal_strength = wifi.get('signal_strength', 'unknown')
 
-        dot2 = "good" if conn.get('internet_connected', False) else "err"
-        st.markdown(f"""
-        <div class="sidebar-row">
-          <div class="sidebar-left"><span class="status-dot {dot2}"></span><strong>Internet</strong></div>
-          <div>{'Online' if conn.get('internet_connected', False) else 'Offline'}</div>
-        </div>
-        <div class="subtle">Latency: {html.escape(str(conn.get('latency','–')))}</div>
-        """, unsafe_allow_html=True)
+        if wifi_status == 'connected':
+            st.sidebar.markdown(f"""
+            <div class="network-status">
+                <h4>📶 WiFi Status</h4>
+                <p><span class="status-indicator status-good"></span>Connected to: <strong>{wifi_ssid}</strong></p>
+                <p>Signal: {signal_strength} dBm</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown(f"""
+            <div class="network-status">
+                <h4>📶 WiFi Status</h4>
+                <p><span class="status-indicator status-error"></span>Not Connected</p>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <div class="sidebar-row"><div class="sidebar-left"><strong>Performance</strong></div><div></div></div>
-        <div class="subtle">Quality: {html.escape(str(perf.get('network_quality','–')).title())} • Active Connections: {html.escape(str(perf.get('active_connections',0)))}</div>
+        # Internet Status
+        internet_connected = connectivity.get('internet_connected', False)
+        latency = connectivity.get('latency', 'unknown')
+
+        if internet_connected:
+            st.sidebar.markdown(f"""
+            <div class="network-status">
+                <h4>🌐 Internet Status</h4>
+                <p><span class="status-indicator status-good"></span>Connected</p>
+                <p>Latency: {latency}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown(f"""
+            <div class="network-status">
+                <h4>🌐 Internet Status</h4>
+                <p><span class="status-indicator status-error"></span>Not Connected</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Performance Status
+        quality = performance.get('network_quality', 'unknown')
+        active_connections = performance.get('active_connections', 0)
+
+        st.sidebar.markdown(f"""
+        <div class="network-status">
+            <h4>⚡ Performance</h4>
+            <p>Quality: {quality.title()}</p>
+            <p>Active Connections: {active_connections}</p>
+        </div>
         """, unsafe_allow_html=True)
     else:
-        st.error("Unable to connect to AI brain")
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.sidebar.error("❌ Unable to connect to AI brain")
 
-    # AI Model Status
-    st.markdown('<div class="sidebar-card"><div class="sidebar-title">🤖 AI Brain Status</div>', unsafe_allow_html=True)
-    ai = get_ai_status()
-    if ai:
-        ai_model = ai.get('ai_model_loaded', False)
-        rag_enabled = ai.get('rag_enabled', False)
-        kb = ai.get('knowledge_base_size', 0)
-        st.markdown(f"""
-        <div class="sidebar-row">
-          <div class="sidebar-left"><span class="status-dot {'good' if ai_model else 'warn'}"></span><strong>Model</strong></div>
-          <div>{'distilgpt2' if ai_model else 'Rule-based'}</div>
-        </div>
-        <div class="sidebar-row">
-          <div class="sidebar-left"><span class="status-dot {'good' if rag_enabled else 'err'}"></span><strong>RAG</strong></div>
-          <div>{'Enabled' if rag_enabled else 'Disabled'}</div>
-        </div>
-        <div class="subtle">KB: {kb} items</div>
-        """, unsafe_allow_html=True)
+def display_ai_status():
+    """Display AI brain status"""
+    st.sidebar.markdown("### AI Brain Status")
+
+    ai_status = get_ai_status()
+    if ai_status:
+        ai_model = ai_status.get('ai_model_loaded', False)
+        rag_enabled = ai_status.get('rag_enabled', False)
+        knowledge_size = ai_status.get('knowledge_base_size', 0)
+        tts_available = ai_status.get('tts_available', False)
+
+        if ai_model:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>🤖 AI Model</h4>
+                <p><span class="status-indicator status-good"></span>distilgpt2 Loaded</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>🤖 AI Model</h4>
+                <p><span class="status-indicator status-warning"></span>Rule-based Mode</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if rag_enabled:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>📚 RAG Knowledge</h4>
+                <p><span class="status-indicator status-good"></span>{knowledge_size} Items Loaded</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>📚 RAG Knowledge</h4>
+                <p><span class="status-indicator status-error"></span>Not Available</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # TTS Status
+        if tts_available:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>🔊 Voice (TTS)</h4>
+                <p><span class="status-indicator status-good"></span>Piper Available</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.sidebar.markdown(f"""
+            <div class="ai-brain">
+                <h4>🔊 Voice (TTS)</h4>
+                <p><span class="status-indicator status-error"></span>Not Available</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.error("Unable to get AI brain status")
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.sidebar.error("❌ Unable to get AI brain status")
 
-    # Hints
-    st.markdown('<div class="sidebar-card"><div class="sidebar-title">💡 Try asking</div>', unsafe_allow_html=True)
-    st.markdown("- What's wrong with my WiFi?\n- My internet is slow, help me\n- How can I improve my signal?\n- Check my network security\n- Why is my connection dropping?")
-    st.markdown('</div>', unsafe_allow_html=True)
+def save_audio_recording(audio_bytes):
+    """Save audio recording to recordings folder"""
+    try:
+        # Create recordings folder if it doesn't exist
+        recordings_dir = os.path.join(os.path.dirname(__file__), "recordings")
+        os.makedirs(recordings_dir, exist_ok=True)
 
-# ---------- Top nav ----------
-st.markdown("""
-<div class="nav-wrap">
-  <div class="nav-inner">
-    <span class="badge">v7.0.0</span>
-    <span class="brand-title">AI Network Brain</span>
-    <span class="badge">RAG + distilgpt2</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"recording_{timestamp}.wav"
+        filepath = os.path.join(recordings_dir, filename)
 
-# ---------- Hero / summary ----------
-st.markdown("""
-<div class="hero">
-  <div class="hero-inner">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div>
-        <div class="brand-title">Smart network diagnostics</div>
-        <div class="subtle"> AI Powered for Wi-Fi and internet health</div>
-      </div>
-      <div>Real-time CLI analysis</div>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        # Save the audio file
+        with open(filepath, "wb") as f:
+            f.write(audio_bytes)
 
-# ---------- Chat history ----------
-st.markdown('<div class="chat-wrap"><div class="chat-inner">', unsafe_allow_html=True)
+        return filepath, filename
+    except Exception as e:
+        st.error(f"Error saving recording: {e}")
+        return None, None
 
-if not st.session_state.messages:
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": "Hey! I can troubleshoot Wi-Fi, latency, and general connectivity. Ask me anything about your network.",
-        "time": datetime.now().isoformat(timespec="seconds")
-    })
+def convert_to_wav_16khz(input_file):
+    """Convert audio to 16kHz WAV format for whisper.cpp"""
+    try:
+        # Generate output filename
+        base_name = os.path.splitext(input_file)[0]
+        output_file = f"{base_name}_16khz.wav"
 
-for msg in st.session_state.messages:
-    role = msg.get("role","assistant")
-    content = msg.get("content","")
-    time_str = msg.get("time","")
-    avatar = "🧑‍💻" if role == "user" else "🤖"
-    role_name = "You" if role == "user" else "Assistant"
+        # Use ffmpeg to convert
+        cmd = [
+            "ffmpeg",
+            "-i", input_file,
+            "-ar", "16000",  # 16kHz sample rate
+            "-ac", "1",      # mono
+            "-c:a", "pcm_s16le",  # 16-bit PCM
+            "-y",            # overwrite output file
+            output_file
+        ]
 
-    # If we stored raw markdown, render it nicely (no literal asterisks)
-    safe_html = content if content.strip().startswith("<") else md_to_html(content)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
-    st.markdown(f"""
-    <div class="msg {role}">
-      <div class="avatar">{avatar}</div>
-      <div class="bubble">
-        <div class="role">{role_name} • <span class="subtle">{time_str}</span></div>
-        <div class="content">{safe_html}</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+        if result.returncode == 0:
+            return output_file
+        else:
+            st.error(f"FFmpeg error: {result.stderr}")
+            return None
+    except Exception as e:
+        st.error(f"Error converting audio: {e}")
+        return None
 
-st.markdown('</div></div>', unsafe_allow_html=True)
+def transcribe_with_whisper(audio_file):
+    """Transcribe audio using whisper.cpp"""
+    try:
+        # Paths
+        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
+        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
 
-# ---------- Input row ----------
-st.markdown('<div class="input-wrap"><div class="input-inner">', unsafe_allow_html=True)
-colA, colB = st.columns([1, 7])
-with colA:
-    st.markdown("**Message**")
-with colB:
-    st.markdown('<div class="input-row">', unsafe_allow_html=True)
-    prompt = st.chat_input("Ask the AI brain about your network…")
-    st.markdown('</div>', unsafe_allow_html=True)
-st.markdown('</div></div>', unsafe_allow_html=True)
+        # Create transcriptions folder
+        transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
+        os.makedirs(transcriptions_dir, exist_ok=True)
 
-# ---------- Handle send ----------
-if prompt:
-    now = datetime.now().isoformat(timespec="seconds")
-    st.session_state.messages.append({"role":"user","content":prompt,"time":now})
+        # Generate output file path (without extension)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_base = os.path.join(transcriptions_dir, f"transcription_{timestamp}")
 
-    # Typing bubble
-    st.markdown(f"""
-    <div class="chat-wrap"><div class="chat-inner">
-      <div class="msg user">
-        <div class="avatar">🧑‍💻</div>
-        <div class="bubble">
-          <div class="role">You • <span class="subtle">{now}</span></div>
-          <div class="content">{md_to_html(prompt)}</div>
-        </div>
-      </div>
-      <div class="msg assistant">
-        <div class="avatar">🤖</div>
-        <div class="bubble">
-          <div class="role">Assistant • <span class="subtle">thinking</span></div>
-          <div class="content">Analyzing<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
-        </div>
-      </div>
-    </div></div>
-    """, unsafe_allow_html=True)
+        # Run whisper.cpp
+        cmd = [
+            whisper_cli,
+            "-m", model_path,
+            "-f", audio_file,
+            "--output-txt",           # Output text file
+            "--output-file", output_base,
+            "-l", "en",               # English language
+            "--no-timestamps"         # Clean text without timestamps
+        ]
 
-    resp = send_chat_message(prompt)
-    if resp:
-        ai_text = resp.get("response", "Sorry, I couldn’t process that.")
-        model_on = resp.get("ai_model_used", False)
-        rag_on = resp.get("rag_enabled", False)
-        ts = resp.get("timestamp", now)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
-        ai_text_html = md_to_html(ai_text)  # <-- clean markdown (no stars)
-        st.session_state.messages.append({
-            "role":"assistant",
-            "content": ai_text_html + (
-                f"<br><br><small class='subtle'>AI Model: {'distilgpt2' if model_on else 'rule-based'} • RAG: {'Enabled' if rag_on else 'Disabled'} • {ts}</small>"
-            ),
-            "time": ts
-        })
-        st.rerun()
-    else:
-        st.session_state.messages.append({
-            "role":"assistant",
-            "content":"❌ Failed to reach the AI brain. Please check if the API server is running.",
-            "time": now
-        })
-        st.rerun()
+        if result.returncode == 0:
+            # Read the generated text file
+            txt_file = f"{output_base}.txt"
+            if os.path.exists(txt_file):
+                with open(txt_file, 'r') as f:
+                    transcription = f.read().strip()
+                return transcription, txt_file
+            else:
+                st.error("Transcription file not found")
+                return None, None
+        else:
+            st.error(f"Whisper error: {result.stderr}")
+            return None, None
+    except Exception as e:
+        st.error(f"Error transcribing audio: {e}")
+        return None, None
 
-# ---------- Footer ----------
-st.markdown("""
-<div class="footer">
-  <div style="width:min(880px, 92vw); text-align:center;">
-    Built with Streamlit • Styled after Vercel's ai-chatbot • <span class="subtle">RAG + distilgpt2</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+def process_voice_input(audio_bytes):
+    """Process voice input automatically in background"""
+    # Save recording
+    filepath, filename = save_audio_recording(audio_bytes)
+
+    if not filepath:
+        return None
+
+    # Convert to 16kHz WAV
+    converted_file = convert_to_wav_16khz(filepath)
+
+    if not converted_file:
+        return None
+
+    # Transcribe with Whisper
+    transcription, txt_file = transcribe_with_whisper(converted_file)
+
+    return transcription
+
+def main():
+    """Main application"""
+    # Header
+    st.title("AI Network Brain")
+    st.markdown("**Intelligent network analysis powered by RAG + lightweight AI model**")
+
+    # Sidebar
+    with st.sidebar:
+        st.markdown("### 🔧 Settings")
+        api_url = st.text_input("API URL", value=st.session_state.api_url, help="URL of the AI brain API server")
+        if api_url != st.session_state.api_url:
+            st.session_state.api_url = api_url
+            st.rerun()
+
+        # Voice mode toggle
+        st.markdown("---")
+        st.markdown("### 🎙️ Voice Mode")
+        voice_mode = st.checkbox(
+            "Enable Voice Responses",
+            value=st.session_state.voice_mode_enabled,
+            help="AI will speak responses using Piper TTS"
+        )
+        if voice_mode != st.session_state.voice_mode_enabled:
+            st.session_state.voice_mode_enabled = voice_mode
+
+        st.markdown("---")
+        display_network_status()
+
+        st.markdown("---")
+        display_ai_status()
+
+        st.markdown("---")
+        st.markdown("### 💡 Ask the AI Brain")
+        st.markdown("""
+        **Try asking:**
+        - "What's wrong with my WiFi?"
+        - "My internet is slow, help me"
+        - "How can I improve my signal?"
+        - "Check my network security"
+        - "Why is my connection dropping?"
+        """)
+
+    # Chat interface
+    st.markdown("### 💬 Chat with AI Brain")
+
+    # Display chat messages
+    for idx, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            # Show audio player for assistant messages if audio URL is stored
+            if message["role"] == "assistant" and "audio_url" in message:
+                st.audio(message["audio_url"], format="audio/wav")
+
+    # Voice input section - positioned near chat input
+    st.markdown("#### 🎤 Voice Input or Type Below")
+    col_voice, col_text = st.columns([1, 5])
+
+    with col_voice:
+        audio_bytes = audio_recorder(
+            text="",
+            recording_color="#e74c3c",
+            neutral_color="#3498db",
+            icon_name="microphone",
+            icon_size="2x",
+            key="voice_input"
+        )
+
+    # Auto-process voice input when new recording detected
+    if audio_bytes and audio_bytes != st.session_state.pending_audio:
+        st.session_state.pending_audio = audio_bytes
+
+        # Process voice in background with single spinner
+        with st.spinner("🎙️ Processing voice → Transcribing → Getting AI response..."):
+            transcription = process_voice_input(audio_bytes)
+
+            if transcription:
+                # Add user message
+                st.session_state.messages.append({"role": "user", "content": transcription})
+
+                # Get AI response
+                response = send_chat_message(transcription, generate_audio=st.session_state.voice_mode_enabled)
+
+                if response:
+                    ai_response = response.get('response', 'Sorry, I could not process your request.')
+                    audio_url = response.get('audio_url')
+
+                    # Build message with audio URL if available
+                    message_data = {"role": "assistant", "content": ai_response}
+                    if audio_url:
+                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
+                        message_data["audio_url"] = full_audio_url
+                        st.session_state.last_audio_url = full_audio_url
+
+                    st.session_state.messages.append(message_data)
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to get AI response")
+            else:
+                st.error("❌ Voice transcription failed")
+
+    # Chat input
+    if prompt := st.chat_input("Ask the AI brain about your network..."):
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Get AI brain response
+        with st.chat_message("assistant"):
+            with st.spinner("🧠 AI brain is analyzing your network..."):
+                response = send_chat_message(prompt, generate_audio=st.session_state.voice_mode_enabled)
+
+                if response:
+                    ai_response = response.get('response', 'Sorry, I could not process your request.')
+                    audio_url = response.get('audio_url')
+
+                    st.markdown(ai_response)
+
+                    # Play audio if available
+                    if audio_url and st.session_state.voice_mode_enabled:
+                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
+                        st.audio(full_audio_url, format="audio/wav", autoplay=True)
+
+                    # Show AI brain status
+                    ai_model_used = response.get('ai_model_used', False)
+                    rag_enabled = response.get('rag_enabled', False)
+
+                    with st.expander("🧠 AI Brain Analysis Details"):
+                        st.write(f"**AI Model Used:** {'Yes (distilgpt2)' if ai_model_used else 'No (rule-based)'}")
+                        st.write(f"**RAG Knowledge:** {'Enabled' if rag_enabled else 'Disabled'}")
+                        st.write(f"**Voice Response:** {'Yes' if audio_url else 'No'}")
+                        st.write(f"**Response Time:** {response.get('timestamp', 'Unknown')}")
+
+                    # Add AI response to messages with audio URL
+                    message_data = {"role": "assistant", "content": ai_response}
+                    if audio_url and st.session_state.voice_mode_enabled:
+                        message_data["audio_url"] = f"{st.session_state.api_url}{audio_url}"
+                    st.session_state.messages.append(message_data)
+                else:
+                    st.error("❌ Failed to get response from AI brain. Please check if the API server is running.")
+
+    # Footer
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("**AI Brain:** RAG + distilgpt2")
+    with col2:
+        st.markdown("**Analysis:** Real-time CLI")
+    with col3:
+        st.markdown("**Version:** 8.0.0")
+
+if __name__ == "__main__":
+    main()
