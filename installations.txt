@@ -211,3 +211,5 @@ cd whisper.cpp
 sh ./models/download-ggml-model.sh tiny
 cmake -B build
 cmake --build build -j --config Release
+
+./setup_voice.sh
