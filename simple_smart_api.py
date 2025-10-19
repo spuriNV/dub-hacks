@@ -38,7 +38,7 @@ app.add_middleware(
 
 # Initialize the AI assistant
 logger.info("🧠 Initializing Simple Smart AI...")
-ai_assistant = SimpleSmartAI(test_mode=False)  # Disable test mode - use real network data
+ai_assistant = SimpleSmartAI(test_mode=False)  # Normal mode for real network analysis
 logger.info("✅ Simple Smart AI ready!")
 
 # Pydantic models
