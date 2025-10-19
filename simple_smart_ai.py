@@ -283,11 +283,11 @@ class SimpleSmartAI:
                         quality = "poor"
                         emoji = "🔴"
                     
-                    return f"✅ Your WiFi is connected to **{ssid}** with {emoji} **{quality}** signal strength ({signal} dBm). Your connection looks good!"
+                    return f"✅ Your WiFi is connected to {ssid} with {emoji} {quality} signal strength ({signal} dBm). Your connection looks good!"
                 except:
-                    return f"✅ Your WiFi is connected to **{ssid}**. Your connection is working well!"
+                    return f"✅ Your WiFi is connected to {ssid}. Your connection is working well!"
             else:
-                return f"✅ Your WiFi is connected to **{ssid}**. Your connection is working well!"
+                return f"✅ Your WiFi is connected to {ssid}. Your connection is working well!"
         
         # If asking about internet and it's connected
         elif any(word in question_lower for word in ['internet', 'online', 'web', 'browse']) and connectivity.get('internet_connected'):
