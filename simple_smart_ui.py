@@ -523,7 +523,8 @@ def main():
         host='0.0.0.0',
         port=5002,
         debug=True,
-        threaded=True
+        threaded=False,
+        use_reloader=False
     )
 
 if __name__ == "__main__":
