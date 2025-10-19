@@ -553,11 +553,11 @@ Response:"""
                         quality = "poor"
                         emoji = "🔴"
                     
-                    return f"✅ Your WiFi is connected to **{ssid}** with {emoji} **{quality}** signal strength ({signal} dBm). Your connection looks good!"
+                    return f"Your WiFi is connected to **{ssid}** with {emoji} **{quality}** signal strength ({signal} dBm)."
                 except:
-                    return f"✅ Your WiFi is connected to **{ssid}**. Your connection is working well!"
+                    return f"Your WiFi is connected to **{ssid}**!"
             else:
-                return f"✅ Your WiFi is connected to **{ssid}**. Your connection is working well!"
+                return f"Your WiFi is connected to **{ssid}**!"
         
         # If asking about internet and it's connected
         elif any(word in question_lower for word in ['internet', 'online', 'web', 'browse']) and connectivity.get('internet_connected'):
@@ -843,35 +843,49 @@ Response:"""
         return "❌ I couldn't fix the bandwidth issue automatically. Try: 1) Move closer to your router, 2) Close other apps using internet, 3) Use 5GHz WiFi, 4) Check if other devices are using bandwidth."
     
     def _fix_signal_integrity_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
-        """Fix signal integrity and interference issues"""
-        logger.info("📶 Attempting to fix signal integrity issues...")
+        """Handle poor WiFi signal - can't fix physically, provide helpful guidance"""
+        logger.info("📶 Poor WiFi signal detected - providing guidance...")
         
-        # Try signal optimization
-        try:
-            result = bash_cmd.optimize_wifi_signal()
-            if "optimized" in result.lower():
-                return "✅ Fixed! I optimized your WiFi signal. Try your connection now."
-        except:
-            pass
+        # Get current signal strength for context
+        wifi = network_data.get('wifi', {})
+        signal_strength = wifi.get('signal_strength', 'unknown')
         
-        # Try fixing signal interference
-        try:
-            result = bash_cmd.fix_signal_interference()
-            if "reduced" in result.lower():
-                return "✅ Fixed! I reduced signal interference by changing channels. Try your connection now."
-        except:
-            pass
+        if signal_strength != 'unknown':
+            try:
+                signal_int = int(signal_strength.replace(' dBm', ''))
+                if signal_int < -60:
+                    return f"""🔴 **Poor WiFi Signal Detected** ({signal_strength})
+
+**This is a physical issue that can't be fixed with software commands.**
+
+**📍 Immediate Solutions:**
+• **Move closer to your router** - This is the most effective fix
+• **Remove obstacles** between you and the router (walls, furniture, appliances)
+• **Check router placement** - Is it in a central location?
+• **Try different rooms** to find better signal
+
+**🔧 Advanced Solutions:**
+• **WiFi extender** or **mesh network** for large spaces
+• **Router upgrade** to newer WiFi 6/6E standard
+• **Check for interference** from microwaves, Bluetooth devices, or other WiFi networks
+
+**Current signal: {signal_strength}** (needs to be above -50 dBm for good performance)"""
+            except:
+                pass
         
-        # Try WiFi adapter reset
-        try:
-            result = bash_cmd.reset_wifi_adapter()
-            if "reset" in result.lower():
-                return "✅ Fixed! I reset your WiFi adapter for better signal. Try your connection now."
-        except:
-            pass
-        
-        # If fixes failed, give suggestion
-        return "❌ I couldn't fix the signal issue automatically. Try: 1) Move closer to your router, 2) Remove obstacles, 3) Change WiFi channel, 4) Check for interference from other devices."
+        # Fallback if we can't parse signal strength
+        return """🔴 **Poor WiFi Signal Detected**
+
+**This is a physical issue that can't be fixed with software commands.**
+
+**📍 Immediate Solutions:**
+• **Move closer to your router** - This is the most effective fix
+• **Remove obstacles** between you and the router
+• **Check router placement** - Is it in a central location?
+
+**🔧 Advanced Solutions:**
+• **WiFi extender** or **mesh network** for large spaces
+• **Router upgrade** to newer WiFi 6/6E standard"""
     
     def _detect_actual_network_problems(self, network_data: Dict[str, Any]) -> bool:
         """Detect if there are actual network problems based on real CLI data - only troubleshoot when there are definitive issues"""
