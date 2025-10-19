@@ -51,7 +51,33 @@ def allowed_file(filename):
 def convert_to_wav(input_file):
     """Convert audio to WAV format using ffmpeg"""
     try:
-<<<<<<< Updated upstream
+        # Generate output filename
+        base_name = os.path.splitext(input_file)[0]
+        output_file = f"{base_name}_16khz.wav"
+
+        # Use ffmpeg to convert
+        cmd = [
+            'ffmpeg', '-i', input_file,
+            '-ar', '16000',  # 16kHz sample rate
+            '-ac', '1',      # mono
+            '-c:a', 'pcm_s16le',  # 16-bit PCM
+            '-y',  # overwrite output file
+            output_file
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return output_file
+        else:
+            st.error(f"FFmpeg conversion failed: {result.stderr}")
+            return None
+    except Exception as e:
+        st.error(f"Error converting audio: {e}")
+        return None
+
+def get_network_status():
+    """Get current network status from AI brain"""
+    try:
         # Add timestamp to prevent caching
         # Extended timeout to 30s for operations that take longer
         response = requests.get(
@@ -249,9 +275,6 @@ def convert_to_wav_16khz(input_file):
         output_file = f"{base_name}_16khz.wav"
 
         # Use ffmpeg to convert
-=======
-        output_file = input_file.rsplit('.', 1)[0] + '_converted.wav'
->>>>>>> Stashed changes
         cmd = [
             'ffmpeg', '-i', input_file,
             '-ar', '16000',  # 16kHz sample rate
@@ -493,12 +516,12 @@ def main():
     logger.info("Starting AI Network Brain UI Server")
     logger.info(f"AI Brain API URL: {AI_BRAIN_API_URL}")
     logger.info("Frontend will be served from: frontend/build")
-    logger.info("Server will run on: http://localhost:5001")
-    
+    logger.info("Server will run on: http://localhost:5002")
+
     # Run Flask app
     app.run(
         host='0.0.0.0',
-        port=5001,
+        port=5002,
         debug=True,
         threaded=True
     )
