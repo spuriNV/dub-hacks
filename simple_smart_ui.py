@@ -315,8 +315,8 @@ def transcribe_with_whisper(audio_file):
     """Transcribe audio using whisper.cpp"""
     try:
         # Paths
-        whisper_cli = "/Users/sakethpoori/Documents/hacks/whisper.cpp/build/bin/whisper-cli"
-        model_path = "/Users/sakethpoori/Documents/hacks/whisper.cpp/models/ggml-tiny.bin"
+        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
+        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
 
         # Create transcriptions folder
         transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
