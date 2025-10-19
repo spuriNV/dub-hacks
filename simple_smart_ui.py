@@ -378,7 +378,7 @@ def process_voice_input(audio_bytes):
 def main():
     """Main application"""
     # Header
-    st.title("🧠 AI Network Brain")
+    st.title(" AI Network Brain")
     st.markdown("**Intelligent network analysis powered by RAG + lightweight AI model**")
 
     # Sidebar
