@@ -30,6 +30,76 @@ def identify_band():
     except:
         return "unknown"
 
+def switch_to_fastest_band():
+    """
+    Tests both bands and connects to the one with better speed
+    Returns detailed results of the comparison
+    """
+    import time
+
+    # Identify current band
+    current_band = identify_band()
+    print(f"📊 Current band: {current_band}")
+
+    # Test current band
+    print(f"⚡ Testing {current_band} speed...")
+    current_speed_result = run_speedtest()
+    current_speed = parse_speedtest_result(current_speed_result)
+    print(f"   Download: {current_speed} Mbps")
+
+    # Determine other band
+    other_band = "5 GHz" if current_band == "2.4 GHz" else "2.4 GHz"
+
+    # Switch to other band
+    print(f"🔄 Switching to {other_band}...")
+    change_band()
+    time.sleep(5)  # Wait for connection to stabilize
+
+    # Test new band
+    new_band = identify_band()
+    print(f"⚡ Testing {new_band} speed...")
+    new_speed_result = run_speedtest()
+    new_speed = parse_speedtest_result(new_speed_result)
+    print(f"   Download: {new_speed} Mbps")
+
+    # Compare and decide
+    if current_speed > new_speed:
+        print(f"🔙 {current_band} was faster ({current_speed} Mbps vs {new_speed} Mbps), switching back...")
+        change_band()
+        time.sleep(5)
+        final_band = current_band
+        final_speed = current_speed
+    else:
+        print(f"✅ {new_band} is faster ({new_speed} Mbps vs {current_speed} Mbps), staying here!")
+        final_band = new_band
+        final_speed = new_speed
+
+    return {
+        'original_band': current_band,
+        'original_speed': current_speed,
+        'tested_band': other_band,
+        'tested_speed': new_speed,
+        'final_band': final_band,
+        'final_speed': final_speed,
+        'improved': final_speed > current_speed
+    }
+
+def parse_speedtest_result(speedtest_output):
+    """Parse speedtest output to extract download speed in Mbps"""
+    try:
+        # speedtest_output is bytes, decode it
+        output = speedtest_output.decode() if isinstance(speedtest_output, bytes) else str(speedtest_output)
+
+        # Look for "Download:" line
+        for line in output.split('\n'):
+            if 'Download:' in line:
+                # Extract number (e.g., "Download: 45.67 Mbit/s" -> 45.67)
+                speed = line.split(':')[1].strip().split()[0]
+                return float(speed)
+        return 0.0
+    except:
+        return 0.0
+
 def simulate_network_problems():
     """Simulate network problems for testing - returns bad network data"""
     return {
