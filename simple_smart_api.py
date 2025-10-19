@@ -45,6 +45,7 @@ logger.info("✅ Simple Smart AI ready!")
 class ChatRequest(BaseModel):
     message: str
     generate_audio: bool = False  # Option to generate audio response
+    user_id: str = "default_user"  # User ID for Statsig A/B testing
 
 class ChatResponse(BaseModel):
     response: str
@@ -54,6 +55,7 @@ class ChatResponse(BaseModel):
     ai_model_used: bool
     rag_enabled: bool
     audio_url: str | None = None  # URL to audio file if generated
+    model_name: str | None = None  # Name of the AI model used
 
 class TTSRequest(BaseModel):
     text: str
@@ -94,7 +96,7 @@ async def chat(request: ChatRequest):
     """Chat with the AI brain"""
     try:
         logger.info(f"AI Brain request: {request.message}")
-        result = ai_assistant.chat(request.message)
+        result = ai_assistant.chat(request.message, request.user_id)
 
         # Generate audio if requested
         audio_url = None
@@ -127,7 +129,8 @@ async def chat(request: ChatRequest):
             "request_id": result.get('request_id', f"req_{int(time.time() * 1000)}"),
             "ai_model_used": result.get('ai_model_used', False),
             "rag_enabled": result.get('rag_enabled', False),
-            "audio_url": audio_url
+            "audio_url": audio_url,
+            "model_name": ai_assistant.current_model_name
         }
 
         return ChatResponse(**response_data)
