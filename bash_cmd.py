@@ -37,52 +37,103 @@ def switch_to_fastest_band():
     """
     import time
 
-    # Identify current band
-    current_band = identify_band()
-    print(f"📊 Current band: {current_band}")
+    try:
+        # Identify current band
+        current_band = identify_band()
+        print(f"📊 Current band: {current_band}")
 
-    # Test current band
-    print(f"⚡ Testing {current_band} speed...")
-    current_speed_result = run_speedtest()
-    current_speed = parse_speedtest_result(current_speed_result)
-    print(f"   Download: {current_speed} Mbps")
+        if current_band == "unknown":
+            print("❌ Error: Could not identify current band. Make sure you're connected to T-Mobile or T-Mobile 5G.")
+            return {
+                'error': 'Could not identify current band',
+                'original_band': 'unknown',
+                'original_speed': 0,
+                'tested_band': 'unknown',
+                'tested_speed': 0,
+                'final_band': 'unknown',
+                'final_speed': 0,
+                'improved': False
+            }
 
-    # Determine other band
-    other_band = "5 GHz" if current_band == "2.4 GHz" else "2.4 GHz"
+        # Test current band
+        print(f"⚡ Testing {current_band} speed...")
+        try:
+            current_speed_result = run_speedtest()
+            current_speed = parse_speedtest_result(current_speed_result)
+            print(f"   Download: {current_speed} Mbps")
+        except Exception as e:
+            print(f"❌ Error testing current band: {e}")
+            current_speed = 0
 
-    # Switch to other band
-    print(f"🔄 Switching to {other_band}...")
-    change_band()
-    time.sleep(5)  # Wait for connection to stabilize
+        # Determine other band
+        other_band = "5 GHz" if current_band == "2.4 GHz" else "2.4 GHz"
 
-    # Test new band
-    new_band = identify_band()
-    print(f"⚡ Testing {new_band} speed...")
-    new_speed_result = run_speedtest()
-    new_speed = parse_speedtest_result(new_speed_result)
-    print(f"   Download: {new_speed} Mbps")
+        # Switch to other band
+        print(f"🔄 Switching to {other_band}...")
+        try:
+            change_band()
+            time.sleep(5)  # Wait for connection to stabilize
+        except Exception as e:
+            print(f"❌ Error switching bands: {e}")
+            return {
+                'error': f'Failed to switch bands: {e}',
+                'original_band': current_band,
+                'original_speed': current_speed,
+                'tested_band': other_band,
+                'tested_speed': 0,
+                'final_band': current_band,
+                'final_speed': current_speed,
+                'improved': False
+            }
 
-    # Compare and decide
-    if current_speed > new_speed:
-        print(f"🔙 {current_band} was faster ({current_speed} Mbps vs {new_speed} Mbps), switching back...")
-        change_band()
-        time.sleep(5)
-        final_band = current_band
-        final_speed = current_speed
-    else:
-        print(f"✅ {new_band} is faster ({new_speed} Mbps vs {current_speed} Mbps), staying here!")
-        final_band = new_band
-        final_speed = new_speed
+        # Test new band
+        new_band = identify_band()
+        print(f"⚡ Testing {new_band} speed...")
+        try:
+            new_speed_result = run_speedtest()
+            new_speed = parse_speedtest_result(new_speed_result)
+            print(f"   Download: {new_speed} Mbps")
+        except Exception as e:
+            print(f"❌ Error testing new band: {e}")
+            new_speed = 0
 
-    return {
-        'original_band': current_band,
-        'original_speed': current_speed,
-        'tested_band': other_band,
-        'tested_speed': new_speed,
-        'final_band': final_band,
-        'final_speed': final_speed,
-        'improved': final_speed > current_speed
-    }
+        # Compare and decide
+        if current_speed > new_speed:
+            print(f"🔙 {current_band} was faster ({current_speed} Mbps vs {new_speed} Mbps), switching back...")
+            try:
+                change_band()
+                time.sleep(5)
+            except Exception as e:
+                print(f"❌ Error switching back: {e}")
+            final_band = current_band
+            final_speed = current_speed
+        else:
+            print(f"✅ {new_band} is faster ({new_speed} Mbps vs {current_speed} Mbps), staying here!")
+            final_band = new_band
+            final_speed = new_speed
+
+        return {
+            'original_band': current_band,
+            'original_speed': current_speed,
+            'tested_band': other_band,
+            'tested_speed': new_speed,
+            'final_band': final_band,
+            'final_speed': final_speed,
+            'improved': final_speed > current_speed
+        }
+
+    except Exception as e:
+        print(f"❌ Unexpected error in switch_to_fastest_band: {e}")
+        return {
+            'error': str(e),
+            'original_band': 'unknown',
+            'original_speed': 0,
+            'tested_band': 'unknown',
+            'tested_speed': 0,
+            'final_band': 'unknown',
+            'final_speed': 0,
+            'improved': False
+        }
 
 def parse_speedtest_result(speedtest_output):
     """Parse speedtest output to extract download speed in Mbps"""
@@ -90,14 +141,22 @@ def parse_speedtest_result(speedtest_output):
         # speedtest_output is bytes, decode it
         output = speedtest_output.decode() if isinstance(speedtest_output, bytes) else str(speedtest_output)
 
-        # Look for "Download:" line
+        # speedtest --simple outputs in format:
+        # Ping: 12.34 ms
+        # Download: 45.67 Mbit/s
+        # Upload: 23.45 Mbit/s
+
         for line in output.split('\n'):
-            if 'Download:' in line:
+            if 'Download:' in line or 'download' in line.lower():
                 # Extract number (e.g., "Download: 45.67 Mbit/s" -> 45.67)
-                speed = line.split(':')[1].strip().split()[0]
-                return float(speed)
+                parts = line.split(':')
+                if len(parts) > 1:
+                    speed_str = parts[1].strip().split()[0]
+                    return float(speed_str)
         return 0.0
-    except:
+    except Exception as e:
+        print(f"Error parsing speedtest result: {e}")
+        print(f"Output was: {output if 'output' in locals() else speedtest_output}")
         return 0.0
 
 def simulate_network_problems():

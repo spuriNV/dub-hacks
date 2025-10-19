@@ -234,7 +234,8 @@ class SimpleSmartAI:
         if needs_diagnostics:
             logger.info("🔧 Collecting diagnostic data...")
             diagnostics = get_diagnostics()
-            diagnostic_results = diagnostics.analyze_wifi_quality(network_data)
+            # Enable verbose mode to show progress in console
+            diagnostic_results = diagnostics.analyze_wifi_quality(network_data, verbose=True)
             logger.info(f"✅ Diagnostics complete: {diagnostic_results.get('overall_status')}")
 
         # Step 2: Attempt automatic fixes if problems detected
@@ -463,20 +464,60 @@ Response:"""
                 # Extract band switching results from fix_results
                 band_switch_message = None
                 for fix in fix_results['fixes_successful']:
-                    if 'band' in fix.lower():
+                    if 'band' in fix.lower() and ('switched' in fix.lower() or 'stayed' in fix.lower()):
                         band_switch_message = fix
                         break
 
                 if band_switch_message:
-                    response_parts.append("⚡ **WiFi Band Speed Test Complete!**\n")
-                    response_parts.append(f"✅ {band_switch_message}")
+                    response_parts.append("⚡ **WiFi Band Optimization Complete!**\n")
 
-                    if 'switched to faster' in band_switch_message.lower():
-                        response_parts.append("\nYou're now connected to the faster band for optimal performance!")
+                    # Parse the speeds from the message (e.g., "Switched to faster 5 GHz band (87.3 Mbps vs 42.1 Mbps)")
+                    if '(' in band_switch_message and 'Mbps vs' in band_switch_message:
+                        # Extract speeds
+                        speed_part = band_switch_message[band_switch_message.find('(')+1:band_switch_message.find(')')]
+                        speeds = speed_part.split(' vs ')
+                        new_speed = speeds[0].replace(' Mbps', '')
+                        old_speed = speeds[1].replace(' Mbps', '')
+
+                        if 'switched to faster' in band_switch_message.lower():
+                            improvement = float(new_speed) - float(old_speed)
+                            improvement_pct = (improvement / float(old_speed)) * 100
+                            response_parts.append(f"**Results:**")
+                            response_parts.append(f"• Previous speed: {old_speed} Mbps")
+                            response_parts.append(f"• New speed: {new_speed} Mbps")
+                            response_parts.append(f"• **Speed increase: +{improvement:.1f} Mbps ({improvement_pct:.0f}% faster!)**\n")
+                            response_parts.append("✅ You're now connected to the faster band for optimal performance!")
+                        else:
+                            response_parts.append(f"**Results:**")
+                            response_parts.append(f"• Current speed: {new_speed} Mbps")
+                            response_parts.append(f"• Tested other band: {old_speed} Mbps\n")
+                            response_parts.append("✅ You were already on the fastest available band!")
                     else:
-                        response_parts.append("\nYou were already on the fastest available band!")
+                        response_parts.append(f"✅ {band_switch_message}")
+
+                        if 'switched to faster' in band_switch_message.lower():
+                            response_parts.append("\nYou're now connected to the faster band for optimal performance!")
+                        else:
+                            response_parts.append("\nYou were already on the fastest available band!")
                 else:
                     response_parts.append("I tested both WiFi bands and optimized your connection.")
+            elif fix_results and fix_results.get('fixes_failed'):
+                # Band switching failed
+                error_message = None
+                for fix in fix_results['fixes_failed']:
+                    if 'band' in fix.lower():
+                        error_message = fix
+                        break
+
+                if error_message:
+                    response_parts.append("⚠️ **Band Optimization Failed**\n")
+                    response_parts.append(f"Error: {error_message}")
+                    response_parts.append("\n**Note:** Band switching requires:")
+                    response_parts.append("• Running on actual hardware (Raspberry Pi)")
+                    response_parts.append("• NetworkManager (nmcli) installed")
+                    response_parts.append("• Connection to T-Mobile or T-Mobile 5G networks")
+                else:
+                    response_parts.append("⚠️ Unable to test bands at this time.")
             else:
                 # No fix results, just provide status
                 current_band = bash_cmd.identify_band()
@@ -1529,19 +1570,25 @@ Response:"""
                     fixes_attempted.append("Test and switch to fastest band")
 
                     if result and isinstance(result, dict):
-                        original_speed = result.get('original_speed', 0)
-                        final_speed = result.get('final_speed', 0)
-                        improved = result.get('improved', False)
-                        original_band = result.get('original_band', 'unknown')
-                        final_band = result.get('final_band', 'unknown')
-                        tested_speed = result.get('tested_speed', 0)
-
-                        if improved:
-                            fixes_successful.append(f"Switched to faster {final_band} band ({final_speed:.1f} Mbps vs {original_speed:.1f} Mbps)")
+                        # Check for errors
+                        if 'error' in result:
+                            fixes_failed.append(f"Band switching failed: {result['error']}")
                         else:
-                            fixes_successful.append(f"Stayed on {final_band} band (already fastest at {final_speed:.1f} Mbps)")
+                            original_speed = result.get('original_speed', 0)
+                            final_speed = result.get('final_speed', 0)
+                            improved = result.get('improved', False)
+                            original_band = result.get('original_band', 'unknown')
+                            final_band = result.get('final_band', 'unknown')
+                            tested_speed = result.get('tested_speed', 0)
+
+                            if original_speed == 0 or final_speed == 0:
+                                fixes_failed.append(f"Speed test failed (original: {original_speed} Mbps, final: {final_speed} Mbps)")
+                            elif improved:
+                                fixes_successful.append(f"Switched to faster {final_band} band ({final_speed:.1f} Mbps vs {original_speed:.1f} Mbps)")
+                            else:
+                                fixes_successful.append(f"Stayed on {final_band} band (already fastest at {final_speed:.1f} Mbps)")
                     else:
-                        fixes_failed.append("Band speed test failed")
+                        fixes_failed.append("Band speed test returned invalid results")
                 except Exception as e:
                     fixes_failed.append(f"Fastest band switching error: {e}")
 

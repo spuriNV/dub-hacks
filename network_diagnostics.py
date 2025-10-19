@@ -32,7 +32,7 @@ class NetworkDiagnostics:
         except:
             return False
 
-    def run_ping_test(self, host='8.8.8.8', count=5) -> Dict[str, Any]:
+    def run_ping_test(self, host='8.8.8.8', count=5, verbose=False) -> Dict[str, Any]:
         """
         Run ping test to measure latency and packet loss
 
@@ -40,6 +40,9 @@ class NetworkDiagnostics:
             dict with avg_latency, min_latency, max_latency, packet_loss
         """
         try:
+            if verbose:
+                print(f"🏓 Running ping test to {host} ({count} packets)...")
+
             result = subprocess.run(
                 ['ping', '-c', str(count), host],
                 capture_output=True,
@@ -53,11 +56,18 @@ class NetworkDiagnostics:
                 # Parse average latency
                 avg_match = re.search(r'rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+)', output)
                 if avg_match:
+                    min_lat = float(avg_match.group(1))
+                    avg_lat = float(avg_match.group(2))
+                    max_lat = float(avg_match.group(3))
+
+                    if verbose:
+                        print(f"   ✅ Latency: {avg_lat:.1f}ms (min: {min_lat:.1f}ms, max: {max_lat:.1f}ms)")
+
                     return {
                         'success': True,
-                        'min_latency': float(avg_match.group(1)),
-                        'avg_latency': float(avg_match.group(2)),
-                        'max_latency': float(avg_match.group(3)),
+                        'min_latency': min_lat,
+                        'avg_latency': avg_lat,
+                        'max_latency': max_lat,
                         'mdev': float(avg_match.group(4)),
                         'packet_loss': 0
                     }
@@ -66,6 +76,9 @@ class NetworkDiagnostics:
                 loss_match = re.search(r'(\d+)% packet loss', output)
                 if loss_match:
                     packet_loss = int(loss_match.group(1))
+                    if verbose:
+                        print(f"   ⚠️ Packet loss: {packet_loss}%")
+
                     return {
                         'success': True,
                         'avg_latency': 0,
@@ -75,6 +88,9 @@ class NetworkDiagnostics:
                         'packet_loss': packet_loss
                     }
 
+            if verbose:
+                print(f"   ❌ Ping test failed")
+
             return {
                 'success': False,
                 'error': 'Ping failed',
@@ -83,13 +99,16 @@ class NetworkDiagnostics:
 
         except Exception as e:
             logger.error(f"Ping test error: {e}")
+            if verbose:
+                print(f"   ❌ Error: {e}")
+
             return {
                 'success': False,
                 'error': str(e),
                 'packet_loss': 100
             }
 
-    def test_dns_resolution(self, domains=None) -> Dict[str, Any]:
+    def test_dns_resolution(self, domains=None, verbose=False) -> Dict[str, Any]:
         """
         Test DNS resolution for common domains
 
@@ -98,6 +117,9 @@ class NetworkDiagnostics:
         """
         if domains is None:
             domains = ['google.com', 'cloudflare.com', 'github.com']
+
+        if verbose:
+            print(f"🌐 Testing DNS resolution for {len(domains)} domains...")
 
         results = {
             'total': len(domains),
@@ -124,6 +146,9 @@ class NetworkDiagnostics:
                     'time_ms': resolution_time
                 })
 
+                if verbose:
+                    print(f"   ✅ {domain}: {resolution_time:.0f}ms")
+
             except Exception as e:
                 results['failed'] += 1
                 results['details'].append({
@@ -132,14 +157,20 @@ class NetworkDiagnostics:
                     'error': str(e)
                 })
 
+                if verbose:
+                    print(f"   ❌ {domain}: Failed")
+
         if results['successful'] > 0:
             results['avg_time'] = total_time / results['successful']
 
         results['success_rate'] = (results['successful'] / results['total']) * 100
 
+        if verbose:
+            print(f"   📊 Success rate: {results['success_rate']:.0f}% ({results['successful']}/{results['total']})")
+
         return results
 
-    def run_speedtest(self) -> Dict[str, Any]:
+    def run_speedtest(self, verbose=False) -> Dict[str, Any]:
         """
         Run speedtest if available
 
@@ -147,6 +178,9 @@ class NetworkDiagnostics:
             dict with download, upload, ping speeds
         """
         try:
+            if verbose:
+                print(f"⚡ Running speed test (this may take 20-30 seconds)...")
+
             result = subprocess.run(
                 ['speedtest-cli', '--simple'],
                 capture_output=True,
@@ -166,17 +200,27 @@ class NetworkDiagnostics:
                 for line in lines:
                     if 'Download:' in line:
                         speedtest_data['download'] = line.split(':')[1].strip()
+                        if verbose:
+                            print(f"   📥 Download: {speedtest_data['download']}")
                     elif 'Upload:' in line:
                         speedtest_data['upload'] = line.split(':')[1].strip()
+                        if verbose:
+                            print(f"   📤 Upload: {speedtest_data['upload']}")
                     elif 'Ping:' in line:
                         speedtest_data['ping'] = line.split(':')[1].strip()
+                        if verbose:
+                            print(f"   🏓 Ping: {speedtest_data['ping']}")
 
                 return speedtest_data
             else:
+                if verbose:
+                    print(f"   ❌ Speed test failed")
                 return {'success': False, 'error': 'Speedtest failed'}
 
         except Exception as e:
             logger.error(f"Speedtest error: {e}")
+            if verbose:
+                print(f"   ❌ Error: {e}")
             return {'success': False, 'error': str(e)}
 
     def run_traceroute(self, host='8.8.8.8') -> Dict[str, Any]:
@@ -259,16 +303,20 @@ class NetworkDiagnostics:
             logger.error(f"Gateway info error: {e}")
             return {'gateway_ip': 'unknown', 'error': str(e)}
 
-    def analyze_wifi_quality(self, current_network_data: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_wifi_quality(self, current_network_data: Dict[str, Any], verbose=False) -> Dict[str, Any]:
         """
         Analyze WiFi quality using live tests
 
         Args:
             current_network_data: Current network data from get_network_data()
+            verbose: If True, print progress messages
 
         Returns:
             Comprehensive analysis with quality score and recommendations
         """
+        if verbose:
+            print("\n🔍 **Running Network Diagnostics...**\n")
+
         analysis = {
             'timestamp': time.time(),
             'quality_score': 0,
@@ -279,12 +327,12 @@ class NetworkDiagnostics:
 
         # Run ping test
         logger.info("🔍 Running ping test...")
-        ping_results = self.run_ping_test()
+        ping_results = self.run_ping_test(verbose=verbose)
         analysis['ping_test'] = ping_results
 
         # Run DNS test
         logger.info("🔍 Running DNS test...")
-        dns_results = self.test_dns_resolution()
+        dns_results = self.test_dns_resolution(verbose=verbose)
         analysis['dns_test'] = dns_results
 
         # Calculate quality scores
