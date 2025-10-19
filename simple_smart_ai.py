@@ -20,6 +20,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import bash_cmd
+from network_diagnostics import get_diagnostics
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -151,6 +152,12 @@ class SimpleSmartAI:
                 "content": "Optimal performance: Latest WiFi standard (WiFi 6), 5GHz band, wide channels (80-160MHz), strong signal (-50 dBm or better), low latency (under 20ms), no interference, proper router placement. Performance issues: Old WiFi standard, 2.4GHz band, narrow channels, weak signal, high latency, interference, poor placement, too many devices, outdated equipment.",
                 "category": "optimization_standards",
                 "keywords": ["optimization", "performance", "optimal", "issues", "WiFi standard", "frequency band", "channels", "signal strength", "latency", "interference", "placement", "devices", "equipment"]
+            },
+            {
+                "title": "External Device Connectivity (Printers, Phones, IoT)",
+                "content": "External devices like printers, mobile phones, smart home devices, and IoT gadgets cannot be automatically fixed by network diagnostics. Suggestions for external device issues: 1) Ensure device WiFi is enabled and searching for networks. 2) Verify device is within router range (signal strength). 3) Check if device supports your WiFi frequency (2.4GHz vs 5GHz). 4) Restart the device. 5) Forget and reconnect to the network on the device. 6) Check device-specific settings (firewall, MAC filtering). 7) Verify router allows new devices (not at device limit). 8) Update device firmware/drivers. This system can only provide guidance, not direct control of external devices.",
+                "category": "external_devices",
+                "keywords": ["printer", "phone", "mobile", "device", "iot", "smart home", "connect device", "external", "cannot connect", "won't connect", "device won't", "printer won't"]
             }
         ]
     
@@ -213,26 +220,45 @@ class SimpleSmartAI:
         return " ".join(context_parts)
     
     def generate_ai_response(self, user_question: str, network_data: Dict[str, Any]) -> str:
-        """Generate AI response using rule-based logic first, then AI model if needed"""
+        """Generate AI response using diagnostics + automatic fixes + suggestions"""
+        # Check if question requires live diagnostics
+        question_lower = user_question.lower()
+        needs_diagnostics = any(keyword in question_lower for keyword in [
+            'how', 'status', 'speed', 'fast', 'slow', 'check', 'test',
+            'wifi', 'internet', 'connection', 'quality', 'working', 'signal',
+            'weak', 'poor', 'latency', 'ping'
+        ])
+
+        # Step 1: Run diagnostics if needed
+        diagnostic_results = None
+        if needs_diagnostics:
+            logger.info("🔧 Collecting diagnostic data...")
+            diagnostics = get_diagnostics()
+            # Enable verbose mode to show progress in console
+            diagnostic_results = diagnostics.analyze_wifi_quality(network_data, verbose=True)
+            logger.info(f"✅ Diagnostics complete: {diagnostic_results.get('overall_status')}")
+
+        # Step 2: Attempt automatic fixes if problems detected
+        fix_results = None
+        if diagnostic_results and diagnostic_results.get('issues'):
+            logger.info("🔧 Attempting automatic fixes...")
+            fix_results = self.attempt_automatic_fix(user_question, network_data)
+            logger.info(f"✅ Fix attempts complete: {len(fix_results.get('fixes_successful', []))} successful")
+
         # Get relevant knowledge for RAG
         relevant_knowledge = self.retrieve_relevant_knowledge(user_question, network_data)
-        
-        # Use rule-based response first (this includes the new non-network text detection)
-        rule_based_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
-        
-        # If rule-based response is the default "don't recognize" message, use AI model
-        if "I don't recognize that" in rule_based_response:
-            logger.info("🤖 Using AI model for unrecognized input...")
-            return self._generate_ai_text(user_question, network_data, relevant_knowledge)
-        
-        # Otherwise use the rule-based response
-        return rule_based_response
+
+        # Step 3: Generate response with diagnostic data + fix results
+        if self.model and self.tokenizer:
+            return self._generate_ai_text(user_question, network_data, relevant_knowledge, diagnostic_results, fix_results)
+        else:
+            return self._generate_rule_based_response(user_question, network_data, relevant_knowledge, diagnostic_results, fix_results)
     
-    def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
-        """Generate conversational AI response using the loaded model"""
+    def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]], diagnostic_results: Dict[str, Any] = None, fix_results: Dict[str, Any] = None) -> str:
+        """Generate conversational AI response using the loaded model with diagnostic data and fix results"""
         try:
             # Get the fallback response first
-            fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+            fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge, diagnostic_results, fix_results)
 
             # Create a prompt that asks the AI to say exactly what the fallback says
             wifi = network_data.get('wifi', {})
@@ -311,13 +337,37 @@ Response:"""
                 context_parts.append(f"Knowledge: {knowledge.get('title', '')}")
         
         return " | ".join(context_parts)
-    
-    def _generate_rule_based_response(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
-        """Generate conversational rule-based response when AI model is not available"""
+
+    def _format_response_with_fixes(self, base_response: str, fix_results: Dict[str, Any] = None) -> str:
+        """Format response with automatic fix results prepended"""
+        if not fix_results:
+            return base_response
+
+        response_parts = []
+        fixes_successful = fix_results.get('fixes_successful', [])
+        fixes_failed = fix_results.get('fixes_failed', [])
+
+        if fixes_successful:
+            response_parts.append("🔧 **Automatic Fixes Applied:**")
+            for fix in fixes_successful:
+                response_parts.append(f"  ✅ {fix}")
+            response_parts.append("")
+
+        if fixes_failed:
+            response_parts.append("⚠️ **Some fixes couldn't be applied:**")
+            for fix in fixes_failed:
+                response_parts.append(f"  ❌ {fix}")
+            response_parts.append("")
+
+        response_parts.append(base_response)
+        return "\n".join(response_parts)
+
+    def _generate_rule_based_response(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]], diagnostic_results: Dict[str, Any] = None, fix_results: Dict[str, Any] = None) -> str:
+        """Generate conversational rule-based response with diagnostics and fix results"""
         wifi = network_data.get('wifi', {})
         connectivity = network_data.get('connectivity', {})
         performance = network_data.get('performance', {})
-        
+
         # Analyze the question and network state to give appropriate response
         question_lower = user_question.lower()
         
@@ -355,7 +405,130 @@ Response:"""
         # If asking about problems but network is actually working fine, provide reassurance
         elif any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and not has_actual_problems:
             return self._provide_general_reassurance_response(network_data)
-        
+
+        # Specific handler for latency questions
+        elif any(word in question_lower for word in ['latency', 'ping', 'lag', 'delay', 'response time']):
+            if diagnostic_results:
+                ping_test = diagnostic_results.get('ping_test', {})
+                avg_latency = ping_test.get('avg_latency', 0)
+                packet_loss = ping_test.get('packet_loss', 0)
+
+                response_parts = []
+                if fix_results:
+                    response_parts.append(self._format_response_with_fixes("", fix_results).strip())
+
+                response_parts.append(f"Your network latency is {avg_latency:.1f}ms with {packet_loss}% packet loss.")
+
+                if avg_latency < 20:
+                    response_parts.append("This is excellent for gaming and video calls.")
+                elif avg_latency < 50:
+                    response_parts.append("This is good for most activities.")
+                elif avg_latency < 100:
+                    response_parts.append("This may cause some delays in real-time applications.")
+                else:
+                    response_parts.append("This is high and may cause noticeable delays.")
+
+                if relevant_knowledge:
+                    response_parts.append(f"\n{relevant_knowledge[0]['content']}")
+
+                return "\n".join(response_parts)
+            else:
+                return f"Your current latency is {latency}. Let me run diagnostics to get more details."
+
+        # Specific handler for external device questions (printer, phone, etc.)
+        elif any(word in question_lower for word in ['printer', 'phone', 'device', 'iot', 'smart home']):
+            response_parts = []
+
+            # Acknowledge the external device
+            device_type = 'device'
+            if 'printer' in question_lower:
+                device_type = 'printer'
+            elif 'phone' in question_lower:
+                device_type = 'phone'
+
+            response_parts.append(f"I cannot directly control your {device_type}, but here are troubleshooting suggestions:")
+
+            # Add RAG knowledge if available
+            if relevant_knowledge:
+                for knowledge in relevant_knowledge[:1]:
+                    if 'external' in knowledge.get('category', '').lower():
+                        response_parts.append(f"\n{knowledge['content']}")
+
+            # Show host network is working
+            response_parts.append(f"\nYour network status: WiFi: {'Connected' if is_wifi_connected else 'Not Connected'}, Internet: {'Connected' if is_internet_working else 'Not Connected'}, Latency: {latency}")
+
+            return "\n".join(response_parts)
+
+        # Specific handler for band switching questions (Demo 5)
+        elif any(phrase in question_lower for phrase in ['fastest band', 'faster band', 'best band', 'switch band', 'better band', 'optimize band']):
+            response_parts = []
+
+            if fix_results and fix_results.get('fixes_successful'):
+                # Extract band switching results from fix_results
+                band_switch_message = None
+                for fix in fix_results['fixes_successful']:
+                    if 'band' in fix.lower() and ('switched' in fix.lower() or 'stayed' in fix.lower()):
+                        band_switch_message = fix
+                        break
+
+                if band_switch_message:
+                    response_parts.append("⚡ **WiFi Band Optimization Complete!**\n")
+
+                    # Parse the speeds from the message (e.g., "Switched to faster 5 GHz band (87.3 Mbps vs 42.1 Mbps)")
+                    if '(' in band_switch_message and 'Mbps vs' in band_switch_message:
+                        # Extract speeds
+                        speed_part = band_switch_message[band_switch_message.find('(')+1:band_switch_message.find(')')]
+                        speeds = speed_part.split(' vs ')
+                        new_speed = speeds[0].replace(' Mbps', '')
+                        old_speed = speeds[1].replace(' Mbps', '')
+
+                        if 'switched to faster' in band_switch_message.lower():
+                            improvement = float(new_speed) - float(old_speed)
+                            improvement_pct = (improvement / float(old_speed)) * 100
+                            response_parts.append(f"**Results:**")
+                            response_parts.append(f"• Previous speed: {old_speed} Mbps")
+                            response_parts.append(f"• New speed: {new_speed} Mbps")
+                            response_parts.append(f"• **Speed increase: +{improvement:.1f} Mbps ({improvement_pct:.0f}% faster!)**\n")
+                            response_parts.append("✅ You're now connected to the faster band for optimal performance!")
+                        else:
+                            response_parts.append(f"**Results:**")
+                            response_parts.append(f"• Current speed: {new_speed} Mbps")
+                            response_parts.append(f"• Tested other band: {old_speed} Mbps\n")
+                            response_parts.append("✅ You were already on the fastest available band!")
+                    else:
+                        response_parts.append(f"✅ {band_switch_message}")
+
+                        if 'switched to faster' in band_switch_message.lower():
+                            response_parts.append("\nYou're now connected to the faster band for optimal performance!")
+                        else:
+                            response_parts.append("\nYou were already on the fastest available band!")
+                else:
+                    response_parts.append("I tested both WiFi bands and optimized your connection.")
+            elif fix_results and fix_results.get('fixes_failed'):
+                # Band switching failed
+                error_message = None
+                for fix in fix_results['fixes_failed']:
+                    if 'band' in fix.lower():
+                        error_message = fix
+                        break
+
+                if error_message:
+                    response_parts.append("⚠️ **Band Optimization Failed**\n")
+                    response_parts.append(f"Error: {error_message}")
+                    response_parts.append("\n**Note:** Band switching requires:")
+                    response_parts.append("• Running on actual hardware (Raspberry Pi)")
+                    response_parts.append("• NetworkManager (nmcli) installed")
+                    response_parts.append("• Connection to T-Mobile or T-Mobile 5G networks")
+                else:
+                    response_parts.append("⚠️ Unable to test bands at this time.")
+            else:
+                # No fix results, just provide status
+                current_band = bash_cmd.identify_band()
+                response_parts.append(f"📊 You're currently on the {current_band} band.")
+                response_parts.append("\nI can test both bands and switch you to the fastest one. This will take about 30-60 seconds.")
+
+            return "\n".join(response_parts)
+
         # If asking about WiFi status and it's connected
         elif any(word in question_lower for word in ['wifi', 'network', 'connected', 'connection']) and wifi.get('status') == 'connected':
             ssid = wifi.get('ssid', 'your network')
@@ -412,16 +585,16 @@ Response:"""
             return "\n".join(response_parts)
         
         # Check if input has nothing to do with networks
-        network_keywords = ['wifi', 'internet', 'network', 'connection', 'signal', 'speed', 'latency', 'bandwidth', 'router', 'modem', 'ethernet', 'wireless', 'online', 'offline', 'connect', 'disconnect', 'browse', 'web', 'ping', 'dns', 'ip', 'troubleshoot', 'fix', 'problem', 'issue', 'slow', 'fast', 'weak', 'strong', 'quality', 'performance']
-        
+        network_keywords = ['wifi', 'internet', 'network', 'connection', 'signal', 'speed', 'latency', 'bandwidth', 'router', 'modem', 'ethernet', 'wireless', 'online', 'offline', 'connect', 'disconnect', 'browse', 'web', 'ping', 'dns', 'ip', 'troubleshoot', 'fix', 'problem', 'issue', 'slow', 'fast', 'weak', 'strong', 'quality', 'performance', 'printer', 'device', 'phone', 'lag', 'delay', 'high', 'low', 'band', 'optimize']
+
         has_network_keywords = any(keyword in question_lower for keyword in network_keywords)
-        
+
         if not has_network_keywords:
             return "🤔 I don't recognize that input. I'm a network assistant - please try asking about WiFi, internet, or network issues like 'My WiFi is slow' or 'I can't connect to the internet'."
-        
-        # Default conversational response for network-related but unclear input
-        else:
-            return "🤔 I don't recognize that. Please try again with a network-related question like 'My WiFi is slow' or 'I can't connect to the internet'."
+
+        # If we have network keywords but didn't match earlier conditions, provide general network status
+        base_response = self._analyze_current_network(network_data)
+        return self._format_response_with_fixes(base_response, fix_results)
     
     def _attempt_targeted_fix(self, user_question: str, network_data: Dict[str, Any]) -> str:
         """Simplified flow: detect specific problem → attempt targeted fix → report result"""
@@ -902,8 +1075,9 @@ Response:"""
             analysis_parts.append(f"🌐 Internet: Connected ({latency})")
         else:
             analysis_parts.append("🌐 Internet: Not connected")
-        
-        return "\n".join(analysis_parts)
+
+        base_response = "\n".join(analysis_parts)
+        return self._format_response_with_fixes(base_response, fix_results)
     
     def get_network_data(self, user_question: str = "") -> Dict[str, Any]:
         """Get network data with hybrid approach - fast core + smart additions"""
@@ -1002,7 +1176,8 @@ Response:"""
         
         try:
             system = platform.system()
-            
+            logger.info(f"🔍 Detecting network on platform: {system}")
+
             if system == "Darwin":  # macOS
                 # Check if we have an IP address (indicates WiFi connection)
                 try:
@@ -1052,18 +1227,38 @@ Response:"""
                     pass
             
             elif system == "Linux":
-                result = subprocess.run(['iwconfig'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    wifi_output = result.stdout
-                    ssid_match = re.search(r'ESSID:"([^"]+)"', wifi_output)
-                    signal_match = re.search(r'Signal level=(-?\d+)', wifi_output)
-                    
-                    wifi_info.update({
-                        "status": "connected" if "ESSID:" in wifi_output else "disconnected",
-                        "ssid": ssid_match.group(1) if ssid_match else "Unknown",
-                        "signal_strength": signal_match.group(1) if signal_match else "unknown",
-                        "interface": "wlan0"
-                    })
+                # For WSL/Linux, check if we have network connectivity
+                try:
+                    # Try iwconfig first (if available on real Linux)
+                    result = subprocess.run(['iwconfig'], capture_output=True, text=True, timeout=2)
+                    if result.returncode == 0:
+                        wifi_output = result.stdout
+                        ssid_match = re.search(r'ESSID:"([^"]+)"', wifi_output)
+                        signal_match = re.search(r'Signal level=(-?\d+)', wifi_output)
+
+                        wifi_info.update({
+                            "status": "connected" if "ESSID:" in wifi_output else "disconnected",
+                            "ssid": ssid_match.group(1) if ssid_match else "Unknown",
+                            "signal_strength": signal_match.group(1) if signal_match else "unknown",
+                            "interface": "wlan0"
+                        })
+                except Exception as e:
+                    # iwconfig not available (WSL) - check if we have internet via ip addr
+                    logger.info(f"📡 iwconfig failed ({e}), trying WSL fallback with ip addr...")
+                    try:
+                        result = subprocess.run(['ip', 'addr'], capture_output=True, text=True, timeout=2)
+                        logger.info(f"📡 ip addr result: returncode={result.returncode}, has_inet={'inet ' in result.stdout}")
+                        if result.returncode == 0 and 'inet ' in result.stdout:
+                            # We have network connectivity
+                            wifi_info.update({
+                                "status": "connected",
+                                "ssid": "Network",  # Generic for WSL
+                                "signal_strength": "unknown",
+                                "interface": "eth0"
+                            })
+                            logger.info(f"✅ WSL network detected: {wifi_info}")
+                    except Exception as e2:
+                        logger.error(f"❌ WSL fallback also failed: {e2}")
             
             # Get IP info
             interfaces = psutil.net_if_addrs()
@@ -1345,9 +1540,9 @@ Response:"""
                 except Exception as e:
                     fixes_failed.append(f"Network stack restart error: {e}")
             
-            # DNS/Internet issues
-            if any(word in question_lower for word in ['dns', 'internet', 'website', 'browser', 'slow']):
-                logger.info("🌐 Attempting to fix DNS/Internet issues...")
+            # DNS/Internet/Latency issues
+            if any(word in question_lower for word in ['dns', 'internet', 'website', 'browser', 'slow', 'latency', 'ping', 'lag']):
+                logger.info("🌐 Attempting to fix DNS/Internet/Latency issues...")
                 
                 # Try flushing DNS cache
                 try:
@@ -1381,7 +1576,19 @@ Response:"""
                         fixes_failed.append("IP address renewal failed")
                 except Exception as e:
                     fixes_failed.append(f"IP address renewal error: {e}")
-            
+
+                # Try fixing latency issues specifically
+                if 'latency' in question_lower or 'ping' in question_lower or 'lag' in question_lower:
+                    try:
+                        result = bash_cmd.fix_latency_issues()
+                        fixes_attempted.append("Fix latency (flush routing cache)")
+                        if "addressed" in result.lower():
+                            fixes_successful.append("Latency optimizations applied")
+                        else:
+                            fixes_failed.append("Latency fix failed")
+                    except Exception as e:
+                        fixes_failed.append(f"Latency fix error: {e}")
+
             # Signal strength issues
             if any(word in question_lower for word in ['signal', 'weak', 'poor', 'bars', 'strength']):
                 logger.info("📶 Attempting to fix signal issues...")
@@ -1405,7 +1612,38 @@ Response:"""
                             fixes_failed.append("Failed to switch to T-Mobile 2.4GHz")
                 except Exception as e:
                     fixes_failed.append(f"Band switching error: {e}")
-            
+
+            # Fastest band switching (Demo 5)
+            if any(phrase in question_lower for phrase in ['fastest band', 'faster band', 'best band', 'switch band', 'better band', 'optimize band']):
+                logger.info("⚡ Testing and switching to fastest WiFi band...")
+
+                try:
+                    result = bash_cmd.switch_to_fastest_band()
+                    fixes_attempted.append("Test and switch to fastest band")
+
+                    if result and isinstance(result, dict):
+                        # Check for errors
+                        if 'error' in result:
+                            fixes_failed.append(f"Band switching failed: {result['error']}")
+                        else:
+                            original_speed = result.get('original_speed', 0)
+                            final_speed = result.get('final_speed', 0)
+                            improved = result.get('improved', False)
+                            original_band = result.get('original_band', 'unknown')
+                            final_band = result.get('final_band', 'unknown')
+                            tested_speed = result.get('tested_speed', 0)
+
+                            if original_speed == 0 or final_speed == 0:
+                                fixes_failed.append(f"Speed test failed (original: {original_speed} Mbps, final: {final_speed} Mbps)")
+                            elif improved:
+                                fixes_successful.append(f"Switched to faster {final_band} band ({final_speed:.1f} Mbps vs {original_speed:.1f} Mbps)")
+                            else:
+                                fixes_successful.append(f"Stayed on {final_band} band (already fastest at {final_speed:.1f} Mbps)")
+                    else:
+                        fixes_failed.append("Band speed test returned invalid results")
+                except Exception as e:
+                    fixes_failed.append(f"Fastest band switching error: {e}")
+
             # General network issues
             if any(word in question_lower for word in ['problem', 'issue', 'trouble', 'help', 'fix']):
                 logger.info("🔧 Attempting general network fixes...")
