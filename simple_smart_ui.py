@@ -99,11 +99,21 @@ if "last_audio_url" not in st.session_state:
 if "pending_audio" not in st.session_state:
     st.session_state.pending_audio = None
 
+if "auto_refresh" not in st.session_state:
+    st.session_state.auto_refresh = False
+
+if "last_refresh_time" not in st.session_state:
+    st.session_state.last_refresh_time = time.time()
+
 def get_network_status():
     """Get current network status from AI brain"""
     try:
-        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
-        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
+        # Add timestamp to prevent caching
+        response = requests.get(
+            f"{st.session_state.api_url}/network-status?t={int(time.time() * 1000)}",
+            timeout=5,
+            headers={'Cache-Control': 'no-cache'}
+        )
         if response.status_code == 200:
             return response.json()
         return None
@@ -140,6 +150,10 @@ def send_chat_message(message, generate_audio=False):
 def display_network_status():
     """Display current network status in sidebar"""
     st.sidebar.markdown("### 📊 Network Status")
+
+    # Show last update time
+    current_time = datetime.now().strftime("%H:%M:%S")
+    st.sidebar.markdown(f"<small style='color: #888;'>Last updated: {current_time}</small>", unsafe_allow_html=True)
 
     network_data = get_network_status()
     if network_data:
@@ -400,6 +414,16 @@ def main():
         if voice_mode != st.session_state.voice_mode_enabled:
             st.session_state.voice_mode_enabled = voice_mode
 
+        # Auto-refresh toggle
+        st.markdown("### 🔄 Auto-Refresh")
+        auto_refresh = st.checkbox(
+            "Auto-refresh network status (1s)",
+            value=st.session_state.auto_refresh,
+            help="Automatically update network status every second"
+        )
+        if auto_refresh != st.session_state.auto_refresh:
+            st.session_state.auto_refresh = auto_refresh
+
         st.markdown("---")
         display_network_status()
 
@@ -525,6 +549,16 @@ def main():
         st.markdown("**Analysis:** Real-time CLI")
     with col3:
         st.markdown("**Version:** 8.0.0")
+
+    # Auto-refresh mechanism at the end (triggers after full page render)
+    if st.session_state.auto_refresh:
+        current_time = time.time()
+        elapsed = current_time - st.session_state.last_refresh_time
+
+        if elapsed >= 1.0:
+            st.session_state.last_refresh_time = current_time
+            time.sleep(1.0)  # Wait exactly 1 second
+            st.rerun()
 
 if __name__ == "__main__":
     main()

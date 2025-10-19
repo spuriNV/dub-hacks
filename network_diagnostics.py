@@ -139,6 +139,126 @@ class NetworkDiagnostics:
 
         return results
 
+    def run_speedtest(self) -> Dict[str, Any]:
+        """
+        Run speedtest if available
+
+        Returns:
+            dict with download, upload, ping speeds
+        """
+        try:
+            result = subprocess.run(
+                ['speedtest-cli', '--simple'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                speedtest_data = {
+                    'success': True,
+                    'download': None,
+                    'upload': None,
+                    'ping': None
+                }
+
+                for line in lines:
+                    if 'Download:' in line:
+                        speedtest_data['download'] = line.split(':')[1].strip()
+                    elif 'Upload:' in line:
+                        speedtest_data['upload'] = line.split(':')[1].strip()
+                    elif 'Ping:' in line:
+                        speedtest_data['ping'] = line.split(':')[1].strip()
+
+                return speedtest_data
+            else:
+                return {'success': False, 'error': 'Speedtest failed'}
+
+        except Exception as e:
+            logger.error(f"Speedtest error: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def run_traceroute(self, host='8.8.8.8') -> Dict[str, Any]:
+        """
+        Run traceroute to diagnose routing path
+
+        Returns:
+            dict with hop count and route info
+        """
+        try:
+            result = subprocess.run(
+                ['traceroute', '-m', '15', host],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode == 0:
+                hops = result.stdout.strip().split('\n')
+                return {
+                    'success': True,
+                    'hop_count': len(hops) - 1,
+                    'route': result.stdout
+                }
+            else:
+                return {'success': False, 'error': 'Traceroute failed'}
+
+        except Exception as e:
+            logger.error(f"Traceroute error: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def get_ipv6_config(self) -> Dict[str, Any]:
+        """Get IPv6 configuration"""
+        try:
+            result = subprocess.run(
+                ['ip', '-6', 'addr'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0:
+                has_ipv6 = 'inet6' in result.stdout
+                return {
+                    'enabled': has_ipv6,
+                    'details': result.stdout if has_ipv6 else 'No IPv6 addresses'
+                }
+            else:
+                return {'enabled': False, 'details': 'IPv6 check failed'}
+
+        except Exception as e:
+            logger.error(f"IPv6 check error: {e}")
+            return {'enabled': False, 'error': str(e)}
+
+    def get_gateway_info(self) -> Dict[str, Any]:
+        """Get default gateway information"""
+        try:
+            result = subprocess.run(
+                ['ip', 'route', 'show', 'default'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0 and result.stdout:
+                # Parse: default via 192.168.1.1 dev eth0
+                parts = result.stdout.split()
+                gateway_ip = parts[2] if len(parts) > 2 else 'unknown'
+                interface = parts[4] if len(parts) > 4 else 'unknown'
+
+                return {
+                    'gateway_ip': gateway_ip,
+                    'interface': interface,
+                    'raw': result.stdout.strip()
+                }
+            else:
+                return {'gateway_ip': 'unknown', 'interface': 'unknown'}
+
+        except Exception as e:
+            logger.error(f"Gateway info error: {e}")
+            return {'gateway_ip': 'unknown', 'error': str(e)}
+
     def analyze_wifi_quality(self, current_network_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Analyze WiFi quality using live tests
