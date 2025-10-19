@@ -216,7 +216,6 @@ with st.sidebar:
     st.markdown("<div class='footer'>v7.0.0 • Real‑time CLI • RAG + distilgpt2</div>", unsafe_allow_html=True)
 
 # Auto-refresh health panes every 5s without resetting inputs
-st.experimental_singleton.clear()  # no-op pattern to keep Streamlit quiet if using caching elsewhere
 st.autorefresh = st.experimental_rerun  # placeholder alias to show we won't call it directly here
 # Note: We rely on pull_health() throttling instead of st_autorefresh to avoid chat flicker.
 
