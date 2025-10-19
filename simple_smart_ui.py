@@ -282,9 +282,9 @@ st.markdown("""
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div>
         <div class="brand-title">Smart network diagnostics</div>
-        <div class="subtle">Lightweight AI + RAG knowledge for Wi-Fi and internet health</div>
+        <div class="subtle"> AI Powered for Wi-Fi and internet health</div>
       </div>
-      <div class="badge">Real-time CLI analysis</div>
+      <div>Real-time CLI analysis</div>
     </div>
   </div>
 </div>
