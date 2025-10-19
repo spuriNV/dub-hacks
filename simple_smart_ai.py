@@ -65,7 +65,7 @@ class SimpleSmartAI:
         logger.info("🤖 Loading lightweight AI model...")
         try:
             # Use a very lightweight model
-            model_name = "distilgpt2"
+            model_name = "google/gemma-2b"
             
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
