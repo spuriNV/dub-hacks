@@ -563,9 +563,9 @@ Response:"""
         elif any(word in question_lower for word in ['internet', 'online', 'web', 'browse']) and connectivity.get('internet_connected'):
             latency = connectivity.get('latency', 'unknown')
             if latency != 'unknown':
-                return f"✅ Your internet is working well! Connection speed is {latency}, which is good for browsing and streaming."
+                return f"Your connection speed is {latency}."
             else:
-                return "✅ Your internet connection is working well!"
+                return "Your internet connection is unknown."
         
         
         # If there are actual problems, provide solutions
