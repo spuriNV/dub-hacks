@@ -347,7 +347,10 @@ Response:"""
         # If asking about problems and there ARE CRITICAL CLI-detected problems, provide help
         if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and has_actual_problems:
             logger.info("🔧 CLI detected CRITICAL network problems, attempting targeted fix...")
-            return self._attempt_targeted_fix(user_question, network_data)
+            # First tell user what's wrong, then attempt fix
+            problem_description = self._describe_network_problems(network_data)
+            fix_result = self._attempt_targeted_fix(user_question, network_data)
+            return f"{problem_description}\n\n{fix_result}"
         
         # If asking about problems but network is actually working fine, provide reassurance
         elif any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and not has_actual_problems:
@@ -814,6 +817,55 @@ Response:"""
         ssid = wifi.get('ssid', 'your network')
         
         return f"✅ Actually, your network looks great! Your WiFi is connected to **{ssid}** and your internet is working well. Are you experiencing any specific issues? Sometimes restarting your browser or clearing its cache can help if websites seem slow."
+    
+    def _describe_network_problems(self, network_data: Dict[str, Any]) -> str:
+        """Clearly describe what network problems were detected"""
+        wifi = network_data.get('wifi', {})
+        connectivity = network_data.get('connectivity', {})
+        performance = network_data.get('performance', {})
+        
+        problems = []
+        
+        # WiFi issues
+        if wifi.get('status') != 'connected':
+            problems.append("🔴 **WiFi is disconnected** - You're not connected to any network")
+        elif wifi.get('ssid') == 'None':
+            problems.append("🔴 **WiFi connection lost** - No active network connection")
+        
+        # Internet issues  
+        if not connectivity.get('internet_connected', False):
+            problems.append("🔴 **Internet is down** - No internet connectivity detected")
+        elif not connectivity.get('dns_working', False):
+            problems.append("🔴 **DNS not working** - Can't resolve website addresses")
+        
+        # Signal issues
+        signal_strength = wifi.get('signal_strength', 'unknown')
+        if signal_strength != 'unknown':
+            try:
+                signal_int = int(signal_strength)
+                if signal_int < -85:
+                    problems.append(f"🔴 **Extremely weak WiFi signal** - {signal_strength} dBm (very poor)")
+                elif signal_int < -70:
+                    problems.append(f"🟡 **Weak WiFi signal** - {signal_strength} dBm (poor)")
+            except:
+                pass
+        
+        # Speed issues
+        latency = connectivity.get('latency', 'unknown')
+        if latency != 'unknown':
+            try:
+                latency_num = float(latency.replace('ms', ''))
+                if latency_num > 200:
+                    problems.append(f"🔴 **Extremely slow internet** - {latency} latency (very poor)")
+                elif latency_num > 100:
+                    problems.append(f"🟡 **Slow internet** - {latency} latency (poor)")
+            except:
+                pass
+        
+        if problems:
+            return "🚨 **I detected the following network problems:**\n\n" + "\n".join(problems)
+        else:
+            return "🔍 **I'm analyzing your network issues...**"
     
     def _analyze_current_network(self, network_data: Dict[str, Any]) -> str:
         """Analyze current network status"""
