@@ -4,6 +4,7 @@ Generate users and events for Statsig dashboard
 """
 
 import time
+import os
 from statsig_python_core import Statsig, StatsigUser, StatsigOptions
 
 def generate_users():
@@ -16,7 +17,8 @@ def generate_users():
         options = StatsigOptions()
         options.environment = "development"
         
-        statsig = Statsig("secret-gfkbRyexczdpYgd52rFF6IEOB8VVTfBDVzW8SIMW0Zn", options)
+        statsig_secret = os.getenv("STATSIG_SECRET_KEY", "secret-gfkbRyexczdpYgd52rFF6IEOB8VVTfBDVzW8SIMW0Zn")
+        statsig = Statsig(statsig_secret, options)
         statsig.initialize().wait()
         print("✅ Statsig initialized!")
         
