@@ -20,6 +20,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import bash_cmd
+from network_diagnostics import get_diagnostics
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -194,21 +195,36 @@ class SimpleSmartAI:
         return " ".join(context_parts)
     
     def generate_ai_response(self, user_question: str, network_data: Dict[str, Any]) -> str:
-        """Generate AI response using model + RAG"""
+        """Generate AI response using model + RAG with live diagnostics"""
+        # Check if question requires live diagnostics
+        question_lower = user_question.lower()
+        needs_diagnostics = any(keyword in question_lower for keyword in [
+            'how', 'status', 'speed', 'fast', 'slow', 'check', 'test',
+            'wifi', 'internet', 'connection', 'quality', 'working'
+        ])
+
+        # Run live diagnostics if needed
+        diagnostic_results = None
+        if needs_diagnostics:
+            logger.info("🔧 Collecting diagnostic data...")
+            diagnostics = get_diagnostics()
+            diagnostic_results = diagnostics.analyze_wifi_quality(network_data)
+            logger.info(f"✅ Diagnostics complete: {diagnostic_results.get('overall_status')}")
+
         # Retrieve relevant knowledge
         relevant_knowledge = self.retrieve_relevant_knowledge(user_question, network_data)
-        
-        # Generate AI response
+
+        # Generate AI response with diagnostic data
         if self.model and self.tokenizer:
-            return self._generate_ai_text(user_question, network_data, relevant_knowledge)
+            return self._generate_ai_text(user_question, network_data, relevant_knowledge, diagnostic_results)
         else:
-            return self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+            return self._generate_rule_based_response(user_question, network_data, relevant_knowledge, diagnostic_results)
     
-    def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
-        """Generate conversational AI response using the loaded model"""
+    def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]], diagnostic_results: Dict[str, Any] = None) -> str:
+        """Generate conversational AI response using the loaded model with optional diagnostic data"""
         try:
             # Get the fallback response first
-            fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+            fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge, diagnostic_results)
             
             # Create a prompt that asks the AI to say exactly what the fallback says
             wifi = network_data.get('wifi', {})
@@ -288,7 +304,7 @@ Response:"""
         
         return " | ".join(context_parts)
     
-    def _generate_rule_based_response(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
+    def _generate_rule_based_response(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]], diagnostic_results: Dict[str, Any] = None) -> str:
         """Generate conversational rule-based response when AI model is not available"""
         wifi = network_data.get('wifi', {})
         connectivity = network_data.get('connectivity', {})
