@@ -205,3 +205,9 @@ pkill -f streamlit
 - **Chatbot**: http://localhost:8502
 - **API**: http://localhost:8088
 - **API Docs**: http://localhost:8088/docs
+
+git clone https://github.com/ggml-org/whisper.cpp.git
+cd whisper.cpp
+sh ./models/download-ggml-model.sh tiny
+cmake -B build
+cmake --build build -j --config Release
