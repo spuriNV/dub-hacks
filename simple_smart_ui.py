@@ -1,287 +1,397 @@
-#!/usr/bin/env python3
-"""
-AI Network Brain — Streamlit (all‑Python, Vercel‑style UI)
-Vercel-style chat UI in pure Streamlit that integrates your sidebar features:
-- 🔧 Settings (API URL persisted in session)
-- 📊 Network Status (wifi / internet / performance)
-- 🤖 AI Brain Status (model + RAG)
-- 💬 Chat with analysis details (ai_model_used, rag_enabled, timestamp)
-- 🔁 Auto-refresh health cards every 5s (without disrupting chat)
-
-Requires: streamlit, requests
-Run: streamlit run app.py
-"""
-from __future__ import annotations
-import json
-import time
-from datetime import datetime
-from typing import Any, Dict, Optional
-
-import requests
 import streamlit as st
+import requests
+import json
+from datetime import datetime
 
-# ------------------------------
-# Page config
-# ------------------------------
+# ---------- Page config ----------
 st.set_page_config(
     page_title="AI Network Brain",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
-# ------------------------------
-# Custom CSS (Vercel-ish, soft gradients)
-# ------------------------------
-st.markdown(
-    """
-    <style>
-      :root {
-        --ring: 0 0 0 2px rgba(99,102,241,.35);
-      }
-      .ver-card { border:1px solid #e5e7eb; border-radius: 1rem; padding: 1rem; background: #fff; }
-      .ver-card.gradient-purple { background: linear-gradient(90deg,#6366f1 0%,#a855f7 100%); color:#fff; border:none; }
-      .ver-card.gradient-aqua { background: linear-gradient(90deg,#fb7185 0%,#2dd4bf 100%); color:#fff; border:none; }
-      .pill { display:inline-flex; align-items:center; gap:.4rem; border-radius:999px; padding:.25rem .6rem; font-size:.75rem; border:1px solid #e5e7eb; background:#fff; }
-      .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-      .good { background:#22c55e; }
-      .warn { background:#f59e0b; }
-      .bad  { background:#ef4444; }
-      .muted { background:#94a3b8; }
-      .chip { border:1px solid #e5e7eb; border-radius:999px; padding:.25rem .75rem; font-size:.75rem; cursor:pointer; }
-      .chip:hover { background:#f1f5f9; }
-      .input { width:100%; border:1px solid #e5e7eb; border-radius:1rem; padding:.6rem .9rem; outline:none; }
-      .input:focus { box-shadow: var(--ring); }
-      .send { border-radius:1rem; padding:.6rem 1rem; font-weight:600; border:none; background:#4f46e5; color:#fff; }
-      .send:disabled { background:#e5e7eb; color:#94a3b8; }
-      .msg { border-radius:1rem; padding:1rem; border:1px solid #e5e7eb; background:#f8fafc; }
-      .msg.user { background:#0f172a; color:#fff; border-color:#0b1222; }
-      .avatar { width:36px; height:36px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:18px; }
-      .avatar.user { background:#0b1222; color:#fff; }
-      .avatar.assistant { background:#fff; border:1px solid #e5e7eb; }
-      details summary { cursor:pointer; color:#64748b; }
-      .footer { color:#94a3b8; font-size:.75rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ---------- THEME & CSS (Vercel ai-chatbot-inspired) ----------
+st.markdown("""
+<style>
+:root{
+  --bg:#0a0a0b; --panel:#111214; --muted:#9aa3ae; --text:#eceff4; --soft:#1b1d22;
+  --brand: linear-gradient(90deg,#06b6d4 0%, #8b5cf6 50%, #ec4899 100%);
+  --ring: rgba(139,92,246,0.4);
+}
+html, body, [data-testid="stAppViewContainer"]{
+  background: var(--bg);
+  color: var(--text);
+}
+[data-testid="stHeader"] { background: transparent; }
+.block-container{ padding-top: 1.2rem; }
 
-# ------------------------------
-# Session State
-# ------------------------------
-DEFAULT_API = "http://localhost:8088"
-if "api_url" not in st.session_state:
-    st.session_state.api_url = DEFAULT_API
+.nav-wrap{
+  width: 100%;
+  display:flex; justify-content:center; position: sticky; top:0; z-index:10;
+  backdrop-filter: blur(10px);
+  background: rgba(10,10,11,0.55);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.nav-inner{
+  width: min(880px, 92vw);
+  display:flex; align-items:center; gap:.75rem; padding:.6rem 0;
+}
+.badge{
+  font-size:.75rem; padding:.25rem .5rem; border-radius:.5rem;
+  background: rgba(255,255,255,0.06); color:var(--muted); border:1px solid rgba(255,255,255,0.08);
+}
+
+.hero{
+  width:100%; display:flex; justify-content:center; margin: 10px 0 18px 0;
+}
+.hero-inner{
+  width:min(880px, 92vw); background: var(--panel);
+  border:1px solid rgba(255,255,255,0.08);
+  padding: 16px 18px; border-radius: 14px;
+  position:relative; overflow:hidden;
+}
+.hero-inner:before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background: radial-gradient(1000px 300px at -10% -40%, rgba(139,92,246,.18), transparent 60%),
+              radial-gradient(600px 300px at 120% -20%, rgba(6,182,212,.20), transparent 60%);
+}
+
+.brand-title{
+  font-weight:700; letter-spacing:.3px; font-size:1.15rem; display:flex; align-items:center; gap:.5rem;
+  background: var(--brand);
+  -webkit-background-clip: text; background-clip:text; color: transparent;
+}
+
+.subtle{ color: var(--muted); }
+
+.chat-wrap{
+  width:100%; display:flex; justify-content:center; margin-top:.5rem;
+}
+.chat-inner{
+  width:min(880px, 92vw);
+}
+.msg{
+  display:flex; gap:.75rem; margin: 10px 0; padding: 10px 12px;
+  border-radius: 14px; border:1px solid rgba(255,255,255,0.08); position:relative;
+}
+.msg.assistant{
+  background: rgba(255,255,255,0.03);
+}
+.msg.user{
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+}
+.avatar{
+  width:34px; height:34px; border-radius: 10px; display:flex; align-items:center; justify-content:center;
+  background: var(--soft); border:1px solid rgba(255,255,255,0.08); flex:0 0 auto; font-size: 18px;
+}
+.bubble{
+  width:100%;
+}
+.bubble .role{
+  font-size:.8rem; color:var(--muted); margin-bottom:4px;
+}
+.bubble .content{
+  line-height:1.55;
+}
+.bubble code, .bubble pre{
+  background: #0f1115; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:.2rem .35rem;
+}
+.bubble pre { padding: .75rem .9rem; overflow:auto; }
+
+.footer{
+  width:100%; display:flex; justify-content:center; margin-top: 8px;
+  color: var(--muted); font-size:.85rem;
+}
+
+.input-wrap{
+  position:sticky; bottom: 10px; width:100%; display:flex; justify-content:center; margin-top: 6px;
+}
+.input-inner{
+  width:min(880px, 92vw); background: var(--panel); border-radius: 14px;
+  padding: 6px; border: 1px solid rgba(255,255,255,0.08);
+}
+.input-row{
+  display:flex; gap:8px; align-items:center;
+  background: #0f1115; border:1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 8px 10px;
+  outline: 1.5px solid transparent;
+}
+.input-row:focus-within{
+  outline-color: var(--ring);
+}
+.input-row textarea{
+  background: transparent !important; color: var(--text) !important;
+}
+
+.btn{
+  padding: 7px 10px; border-radius: 10px; border:1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  color: var(--text); cursor: pointer;
+}
+.btn:hover{ background: rgba(255,255,255,0.06); }
+
+.typing{
+  display:inline-flex; gap:4px; align-items:center; margin-left: 3px;
+}
+.dot{
+  width:6px; height:6px; background:#cbd5e1; border-radius:50%;
+  animation: bounce 1.1s infinite ease-in-out;
+}
+.dot:nth-child(2){ animation-delay: .15s }
+.dot:nth-child(3){ animation-delay: .3s }
+@keyframes bounce{
+  0%, 80%, 100%{ transform: translateY(0); opacity:.5;}
+  40%{ transform: translateY(-4px); opacity:1;}
+}
+
+/* Sidebar cards retain your status widgets but match the theme */
+.sidebar-card{
+  background: var(--panel);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 12px; margin-bottom: 10px;
+}
+.sidebar-title{
+  font-weight:600; margin-bottom: 6px;
+}
+.status-dot{
+  display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px;
+}
+.good { background:#22c55e; }
+.warn { background:#f59e0b; }
+.err  { background:#ef4444; }
+
+/* Compact Streamlit widget chrome for sidebar */
+.sidebar [data-baseweb="input"] { background: #0f1115; }
+
+/* Hide default chat chrome since we custom render history */
+div[data-testid="stChatMessage"] { background: transparent; border: none; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------- Session State ----------
 if "messages" not in st.session_state:
-    st.session_state.messages = []  # list[dict(role, content, meta?)]
-if "_last_health_pull" not in st.session_state:
-    st.session_state._last_health_pull = 0.0
-if "_health_cache" not in st.session_state:
-    st.session_state._health_cache = {"network": None, "ai": None}
+    st.session_state.messages = []  # [{"role":"user"/"assistant","content": "...", "time": "..."}]
 
-# ------------------------------
-# API Helpers
-# ------------------------------
+if "api_url" not in st.session_state:
+    st.session_state.api_url = "http://localhost:8088"
 
-def _get(url: str, timeout: float = 8.0) -> Optional[Dict[str, Any]]:
+# ---------- API helpers ----------
+def get_network_status():
     try:
-        r = requests.get(url, timeout=timeout)
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
+        resp = requests.get(f"{st.session_state.api_url}/network-status", timeout=10)
+        return resp.json() if resp.status_code == 200 else None
+    except Exception as e:
+        st.sidebar.error(f"Network status error: {e}")
         return None
-    return None
 
-
-def _post(url: str, payload: Dict[str, Any], timeout: float = 15.0) -> Optional[Dict[str, Any]]:
+def get_ai_status():
     try:
-        r = requests.post(url, json=payload, timeout=timeout)
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
+        resp = requests.get(f"{st.session_state.api_url}/ai-status", timeout=10)
+        return resp.json() if resp.status_code == 200 else None
+    except Exception as e:
+        st.sidebar.error(f"AI status error: {e}")
         return None
-    return None
 
+def send_chat_message(message: str):
+    try:
+        resp = requests.post(
+            f"{st.session_state.api_url}/chat",
+            json={"message": message},
+            timeout=30
+        )
+        return resp.json() if resp.status_code == 200 else None
+    except Exception as e:
+        st.error(f"Error connecting to AI brain: {e}")
+        return None
 
-def pull_health(force: bool = False) -> Dict[str, Any]:
-    """Poll /network-status and /ai-status at most once every 5s.
-    Returns cached dict: {"network":..., "ai":...}
-    """
-    now = time.time()
-    if force or (now - st.session_state._last_health_pull) > 5:
-        ns = _get(f"{st.session_state.api_url}/network-status")
-        ai = _get(f"{st.session_state.api_url}/ai-status")
-        st.session_state._health_cache = {"network": ns, "ai": ai}
-        st.session_state._last_health_pull = now
-    return st.session_state._health_cache
-
-
-# ------------------------------
-# UI Helpers
-# ------------------------------
-
-def status_dot(kind: str) -> str:
-    cls = {"good": "good", "warning": "warn", "error": "bad"}.get(kind, "muted")
-    return f'<span class="dot {cls}"></span>'
-
-
-def card(title: str, body: str, gradient: Optional[str] = None):
-    cls = "ver-card " + (f"gradient-{gradient}" if gradient else "")
-    st.markdown(f"<div class='{cls}'><div style='font-weight:600;font-size:.85rem;opacity:.9'>{title}</div><div style='margin-top:.5rem'>{body}</div></div>", unsafe_allow_html=True)
-
-
-# ------------------------------
-# Sidebar
-# ------------------------------
+# ---------- Sidebar (Dashboard features preserved) ----------
 with st.sidebar:
-    st.markdown("## 🧠 AI Network Brain\nControl Panel")
+    st.markdown('<div class="sidebar-card"><div class="sidebar-title">🔧 Settings</div>', unsafe_allow_html=True)
+    api_url = st.text_input("API URL", value=st.session_state.api_url, help="URL of the AI brain API server")
+    reset = st.button("Clear Chat History")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Settings
-    api_url = st.text_input("API URL", value=st.session_state.api_url, help="Your AI brain API, e.g., http://localhost:8088")
     if api_url != st.session_state.api_url:
         st.session_state.api_url = api_url
-        # on change we force a health pull
-        pull_health(force=True)
+        st.rerun()
 
-    st.divider()
+    if reset:
+        st.session_state.messages = []
+        st.success("Chat history cleared.")
 
-    # Health
-    health = pull_health()
-    net = (health.get("network") or {}).get("network_data", {}) if health.get("network") else {}
-    wifi = net.get("wifi", {})
-    conn = net.get("connectivity", {})
-    perf = net.get("performance", {})
-    ai = health.get("ai") or {}
+    # Network Status
+    st.markdown('<div class="sidebar-card"><div class="sidebar-title">📊 Network Status</div>', unsafe_allow_html=True)
+    net = get_network_status()
+    if net:
+        wifi = net.get('network_data', {}).get('wifi', {})
+        conn = net.get('network_data', {}).get('connectivity', {})
+        perf = net.get('network_data', {}).get('performance', {})
 
-    # Network Status card
-    wifi_kind = "good" if wifi.get("status") == "connected" else ("warning" if wifi.get("status") == "unknown" else ("error" if wifi else "muted"))
-    internet_kind = "good" if conn.get("internet_connected") else ("error" if conn else "muted")
+        wifi_status = wifi.get('status', 'unknown')
+        wifi_ssid = wifi.get('ssid', 'Unknown')
+        signal = wifi.get('signal_strength', 'unknown')
+        dot = "good" if wifi_status == "connected" else "err"
+        st.markdown(f"**Wi-Fi**: <span class='status-dot {dot}'></span>{'Connected' if wifi_status=='connected' else 'Not Connected'}", unsafe_allow_html=True)
+        st.caption(f"SSID: {wifi_ssid} • Signal: {signal} dBm")
 
-    wifi_html = f"""
-      <div style='margin-bottom:.75rem'>
-        <div style='font-weight:600'>Wi‑Fi</div>
-        <div>{status_dot(wifi_kind)} {('Connected to <b>'+wifi.get('ssid','Unknown')+'</b>') if wifi.get('status')=='connected' else ('Status unknown' if wifi.get('status')=='unknown' else ('Not connected' if wifi else 'No data'))}</div>
-        {('<div style="opacity:.9">Signal: '+str(wifi.get('signal_strength'))+' dBm</div>') if wifi.get('signal_strength') is not None else ''}
-      </div>
-      <div style='margin-bottom:.75rem'>
-        <div style='font-weight:600'>Internet</div>
-        <div>{status_dot(internet_kind)} {('Online' if conn.get('internet_connected') else ('Offline' if conn else 'No data'))}</div>
-        {('<div style="opacity:.9">Latency: '+str(conn.get('latency'))+'</div>') if conn.get('latency') is not None else ''}
-      </div>
-      <div>
-        <div style='font-weight:600'>Performance</div>
-        <div style='opacity:.9'>Quality: {(perf.get('network_quality') or '—') if perf is not None else '—'}</div>
-        <div style='opacity:.9'>Active Connections: {perf.get('active_connections','—')}</div>
-      </div>
-    """
-    card("📊 Network Status", wifi_html, gradient="purple")
+        internet = conn.get('internet_connected', False)
+        dot2 = "good" if internet else "err"
+        st.markdown(f"**Internet**: <span class='status-dot {dot2}'></span>{'Online' if internet else 'Offline'}", unsafe_allow_html=True)
+        st.caption(f"Latency: {conn.get('latency','–')}")
 
-    st.markdown("")
+        st.markdown("**Performance**")
+        st.caption(f"Quality: {perf.get('network_quality','–').title()} • Active Connections: {perf.get('active_connections',0)}")
+    else:
+        st.error("Unable to connect to AI brain")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # AI Brain Status card
-    model_kind = "good" if ai.get("ai_model_loaded") else ("warning" if ai else "muted")
-    rag_kind = "good" if ai.get("rag_enabled") else ("error" if ai else "muted")
+    # AI Model Status
+    st.markdown('<div class="sidebar-card"><div class="sidebar-title">🤖 AI Brain Status</div>', unsafe_allow_html=True)
+    ai = get_ai_status()
+    if ai:
+        ai_model = ai.get('ai_model_loaded', False)
+        rag_enabled = ai.get('rag_enabled', False)
+        kb = ai.get('knowledge_base_size', 0)
+        st.markdown(f"**Model**: {'distilgpt2' if ai_model else 'Rule-based'}")
+        st.caption(f"RAG: {'Enabled' if rag_enabled else 'Disabled'} • KB: {kb} items")
+    else:
+        st.error("Unable to get AI brain status")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    ai_html = f"""
-      <div class='ver-card' style='background:rgba(255,255,255,.15); border-radius:.75rem'>
-        <div style='font-weight:600; display:flex; align-items:center; gap:.5rem'>{status_dot(model_kind)} Model</div>
-        <div style='opacity:.9'>{'distilgpt2 Loaded' if ai.get('ai_model_loaded') else ('Rule‑based Mode' if ai else 'No data')}</div>
-      </div>
-      <div style='height:.5rem'></div>
-      <div class='ver-card' style='background:rgba(255,255,255,.15); border-radius:.75rem'>
-        <div style='font-weight:600; display:flex; align-items:center; gap:.5rem'>{status_dot(rag_kind)} RAG Knowledge</div>
-        <div style='opacity:.9'>{(str(ai.get('knowledge_base_size',0))+' Items Loaded') if ai.get('rag_enabled') else ('Not Available' if ai else 'No data')}</div>
-      </div>
-    """
-    card("🤖 AI Brain Status", ai_html, gradient="aqua")
+    # Hints
+    st.markdown('<div class="sidebar-card"><div class="sidebar-title">💡 Try asking</div>', unsafe_allow_html=True)
+    st.markdown("- What's wrong with my WiFi?\n- My internet is slow, help me\n- How can I improve my signal?\n- Check my network security\n- Why is my connection dropping?")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("")
-
-    # Quick prompts
-    st.markdown("### 💡 Ask the AI Brain")
-    cols = st.columns(2)
-    examples = [
-        "What's wrong with my Wi‑Fi?",
-        "My internet is slow, help me",
-        "How can I improve my signal?",
-        "Check my network security",
-        "Why is my connection dropping?",
-    ]
-    for i, ex in enumerate(examples):
-        with cols[i % 2]:
-            if st.button(ex, key=f"ex_{i}"):
-                # stage it in a temp key used by main area to populate input
-                st.session_state.__staged_prompt = ex
-
-    st.markdown("<div class='footer'>v7.0.0 • Real‑time CLI • RAG + distilgpt2</div>", unsafe_allow_html=True)
-
-# Auto-refresh health panes every 5s without resetting inputs
-# Note: We rely on pull_health() throttling instead of st_autorefresh to avoid chat flicker.
-
-# ------------------------------
-# Main
-# ------------------------------
+# ---------- Top nav ----------
 st.markdown("""
-# AI Network Brain
-Intelligent network analysis powered by RAG + lightweight AI model
-""")
+<div class="nav-wrap">
+  <div class="nav-inner">
+    <span class="badge">v7.0.0</span>
+    <span class="brand-title">AI Network Brain</span>
+    <span class="badge">RAG + distilgpt2</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-# Existing transcript
-for m in st.session_state.messages:
-    with st.chat_message(m.get("role","assistant")):
-        st.markdown(m.get("content",""))
-        if m.get("role") == "assistant" and m.get("meta"):
-            meta = m["meta"]
-            with st.expander("🧠 AI Brain Analysis Details"):
-                st.write(f"**AI Model Used:** {'Yes (distilgpt2)' if meta.get('ai_model_used') else 'No (rule‑based)'}")
-                st.write(f"**RAG Knowledge:** {'Enabled' if meta.get('rag_enabled') else 'Disabled'}")
-                st.write(f"**Response Time:** {meta.get('timestamp','Unknown')}")
+# ---------- Hero / summary ----------
+st.markdown("""
+<div class="hero">
+  <div class="hero-inner">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <div>
+        <div class="brand-title">Smart network diagnostics</div>
+        <div class="subtle">Lightweight AI + RAG knowledge for Wi-Fi and internet health</div>
+      </div>
+      <div class="badge">Real-time CLI analysis</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-# Composer
-st.markdown("### 💬 Chat with AI Brain")
+# ---------- Chat history (custom render, Vercel-like) ----------
+st.markdown('<div class="chat-wrap"><div class="chat-inner">', unsafe_allow_html=True)
 
-def send_chat_message_py(message: str) -> Optional[Dict[str, Any]]:
-    return _post(f"{st.session_state.api_url}/chat", {"message": message})
+if not st.session_state.messages:
+    # Seed a friendly system-style welcome (rendered as assistant)
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": "Hey! I can troubleshoot Wi-Fi, latency, and general connectivity. Ask me anything about your network.",
+        "time": datetime.now().isoformat(timespec="seconds")
+    })
 
-# prefill from sidebar chips if any
-prefill = st.session_state.pop("__staged_prompt", None)
+for msg in st.session_state.messages:
+    role = msg.get("role","assistant")
+    content = msg.get("content","")
+    time_str = msg.get("time","")
+    avatar = "🧑‍💻" if role == "user" else "🤖"
+    role_name = "You" if role == "user" else "Assistant"
 
-if prompt := st.chat_input("Ask the AI brain about your network…", key="chat_input", disabled=False):
-    # normal input path
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    with st.chat_message("assistant"):
-        with st.spinner("🧠 AI brain is analyzing your network..."):
-            resp = send_chat_message_py(prompt)
-            if resp:
-                answer = resp.get("response", "Sorry, I couldn't process your request.")
-                st.markdown(answer)
-                with st.expander("🧠 AI Brain Analysis Details"):
-                    st.write(f"**AI Model Used:** {'Yes (distilgpt2)' if resp.get('ai_model_used') else 'No (rule‑based)'}")
-                    st.write(f"**RAG Knowledge:** {'Enabled' if resp.get('rag_enabled') else 'Disabled'}")
-                    st.write(f"**Response Time:** {resp.get('timestamp','Unknown')}")
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer,
-                    "meta": {
-                        "ai_model_used": resp.get("ai_model_used"),
-                        "rag_enabled": resp.get("rag_enabled"),
-                        "timestamp": resp.get("timestamp"),
-                    },
-                })
-            else:
-                st.error(f"❌ Failed to get response from AI brain at {st.session_state.api_url}.")
+    # Message bubble
+    st.markdown(f"""
+    <div class="msg {role}">
+      <div class="avatar">{avatar}</div>
+      <div class="bubble">
+        <div class="role">{role_name} • <span class="subtle">{time_str}</span></div>
+        <div class="content">{content}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-elif prefill is not None:
-    # staged from chip: just stuff it in the input so the user can edit
-    st.session_state.chat_input = prefill
+st.markdown('</div></div>', unsafe_allow_html=True)
 
-st.divider()
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown("**AI Brain:** RAG + distilgpt2")
-with col2:
-    st.markdown("**Analysis:** Real-time CLI")
-with col3:
-    st.markdown("**Version:** 7.0.0")
+# ---------- Input row ----------
+st.markdown('<div class="input-wrap"><div class="input-inner">', unsafe_allow_html=True)
+colA, colB = st.columns([1, 7])
+with colA:
+    st.markdown("**Message**")
+
+with colB:
+    # Use st.chat_input for enter-to-send, but style wrapper like Vercel
+    st.markdown('<div class="input-row">', unsafe_allow_html=True)
+    prompt = st.chat_input("Ask the AI brain about your network…")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('</div></div>', unsafe_allow_html=True)
+
+# ---------- Handle send ----------
+if prompt:
+    now = datetime.now().isoformat(timespec="seconds")
+    st.session_state.messages.append({"role":"user","content":prompt,"time":now})
+
+    # Render user's message immediately
+    st.markdown("""
+    <div class="chat-wrap"><div class="chat-inner">
+      <div class="msg user">
+        <div class="avatar">🧑‍💻</div>
+        <div class="bubble">
+          <div class="role">You • <span class="subtle">{time}</span></div>
+          <div class="content">{content}</div>
+        </div>
+      </div>
+      <div class="msg assistant">
+        <div class="avatar">🤖</div>
+        <div class="bubble">
+          <div class="role">Assistant • <span class="subtle">thinking</span></div>
+          <div class="content">Analyzing<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        </div>
+      </div>
+    </div></div>
+    """.format(time=now, content=prompt), unsafe_allow_html=True)
+
+    # Call backend
+    resp = send_chat_message(prompt)
+    if resp:
+        ai_text = resp.get("response", "Sorry, I couldn’t process that.")
+        model_on = resp.get("ai_model_used", False)
+        rag_on = resp.get("rag_enabled", False)
+        ts = resp.get("timestamp", now)
+
+        # Append assistant message
+        st.session_state.messages.append({
+            "role":"assistant",
+            "content": ai_text + (
+                f"<br><br><small class='subtle'>AI Model: {'distilgpt2' if model_on else 'rule-based'} • RAG: {'Enabled' if rag_on else 'Disabled'} • {ts}</small>"
+            ),
+            "time": ts
+        })
+
+        # Force re-render so the typing bubble is replaced by the actual answer
+        st.rerun()
+    else:
+        st.session_state.messages.append({
+            "role":"assistant",
+            "content":"❌ Failed to reach the AI brain. Please check if the API server is running.",
+            "time": now
+        })
+        st.rerun()
+
+# ---------- Footer ----------
+st.markdown("""
+<div class="footer">
+  <div style="width:min(880px, 92vw); text-align:center;">
+    Built with Streamlit • Styled after Vercel's ai-chatbot • <span class="subtle">RAG + distilgpt2</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
