@@ -238,9 +238,12 @@ class SimpleSmartAI:
             diagnostic_results = diagnostics.analyze_wifi_quality(network_data, verbose=True)
             logger.info(f"✅ Diagnostics complete: {diagnostic_results.get('overall_status')}")
 
-        # Step 2: Attempt automatic fixes if problems detected
+        # Step 2: Attempt automatic fixes if problems detected OR if band switching requested
         fix_results = None
-        if diagnostic_results and diagnostic_results.get('issues'):
+        question_lower = user_question.lower()
+        band_switch_requested = any(phrase in question_lower for phrase in ['fastest band', 'faster band', 'best band', 'switch band', 'better band', 'optimize band'])
+
+        if (diagnostic_results and diagnostic_results.get('issues')) or band_switch_requested:
             logger.info("🔧 Attempting automatic fixes...")
             fix_results = self.attempt_automatic_fix(user_question, network_data)
             logger.info(f"✅ Fix attempts complete: {len(fix_results.get('fixes_successful', []))} successful")
