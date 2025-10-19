@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-Simple Smart AI Chatbot UI
-Streamlit interface for the AI brain
+Professional Smart AI Chatbot UI
+Enterprise-grade Streamlit interface for the AI brain
 """
 
 import streamlit as st
 import requests
 import json
 import time
-import os
-import subprocess
 from datetime import datetime
-from audio_recorder_streamlit import audio_recorder
 
 # Configure Streamlit page
 st.set_page_config(
@@ -21,64 +18,318 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Professional Custom CSS
 st.markdown("""
 <style>
-    .chat-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: flex-start;
+    /* Global Styles */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    .chat-message.user {
-        background-color: #2b313e;
+    
+    .main {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 2rem;
+    }
+    
+    .block-container {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 2.5rem;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        max-width: 1400px;
+    }
+    
+    /* Header Styles */
+    .main-header {
+        text-align: center;
+        padding: 2.5rem 2rem;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-radius: 12px;
+        margin-bottom: 2.5rem;
+        box-shadow: 0 8px 24px rgba(30, 60, 114, 0.2);
+    }
+    
+    .main-header h1 {
         color: white;
+        font-size: 2.5rem;
+        margin: 0;
+        font-weight: 600;
+        letter-spacing: -0.5px;
     }
-    .chat-message.assistant {
-        background-color: #f0f2f6;
-        color: black;
+    
+    .main-header p {
+        color: rgba(255,255,255,0.85);
+        font-size: 1rem;
+        margin-top: 0.75rem;
+        font-weight: 400;
+        letter-spacing: 0.3px;
     }
-    .chat-message .avatar {
-        width: 2rem;
-        height: 2rem;
-        border-radius: 50%;
-        margin-right: 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
+    
+    /* Chat Message Styles */
+    .stChatMessage {
+        background: transparent !important;
+        padding: 1rem 0 !important;
     }
-    .network-status {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    
+    [data-testid="stChatMessageContent"] {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-left: 3px solid #2a5298;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    [data-testid="stChatMessageContent"]:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        transform: translateY(-1px);
+    }
+    
+    .stChatMessage[data-testid*="user"] [data-testid="stChatMessageContent"] {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         color: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
+        border-left: 3px solid #1e3c72;
     }
+    
+    /* Status Card Styles */
+    .status-card {
+        background: white;
+        color: #1e3c72;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(30, 60, 114, 0.1);
+    }
+    
+    .status-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        border-color: rgba(30, 60, 114, 0.2);
+    }
+    
+    .status-card h4 {
+        margin: 0 0 1rem 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #1e3c72;
+    }
+    
+    .status-card p {
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+        color: #4a5568;
+        line-height: 1.6;
+    }
+    
+    .status-card strong {
+        color: #1e3c72;
+        font-weight: 600;
+    }
+    
+    /* Status Indicators */
     .status-indicator {
         display: inline-block;
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        margin-right: 0.5rem;
+        margin-right: 0.75rem;
+        transition: all 0.3s ease;
     }
-    .status-good { background-color: #4CAF50; }
-    .status-warning { background-color: #FF9800; }
-    .status-error { background-color: #F44336; }
-    .ai-brain {
-        background: linear-gradient(90deg, #ff6b6b 0%, #4ecdc4 100%);
+    
+    .status-good { 
+        background-color: #10b981;
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+    .status-warning { 
+        background-color: #f59e0b;
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+    .status-error { 
+        background-color: #ef4444;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    }
+    
+    /* Metric Cards */
+    .metric-card {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border: 1px solid #e5e7eb;
+        margin-bottom: 1rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .metric-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #2a5298;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #1e3c72;
+        margin: 0.5rem 0;
+    }
+    
+    .metric-label {
+        color: #6b7280;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+    }
+    
+    /* Sidebar Styles */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e3c72 0%, #2a5298 100%);
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    
+    [data-testid="stSidebar"] .status-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+    }
+    
+    /* Input Styles */
+    .stTextInput input {
+        border-radius: 8px;
+        border: 2px solid #e5e7eb;
+        padding: 0.75rem;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+    }
+    
+    .stTextInput input:focus {
+        border-color: #2a5298;
+        box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+    }
+    
+    /* Chat Input */
+    .stChatInput textarea {
+        border-radius: 12px !important;
+        border: 2px solid #e5e7eb !important;
+        font-size: 0.95rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stChatInput textarea:focus {
+        border-color: #2a5298 !important;
+        box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1) !important;
+    }
+    
+    /* Button Styles */
+    .stButton button {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         color: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        text-align: center;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 12px rgba(30, 60, 114, 0.2);
+        letter-spacing: 0.3px;
     }
-    .voice-input-container {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 1rem;
+    
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(30, 60, 114, 0.3);
+    }
+    
+    /* Expander Styles */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white !important;
+        border-radius: 8px;
+        padding: 1rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        letter-spacing: 0.3px;
+    }
+    
+    .streamlit-expanderContent {
+        border: 1px solid #e5e7eb;
+        border-radius: 0 0 8px 8px;
+        padding: 1rem;
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        padding: 2rem 0 1rem 0;
+        color: #6b7280;
+        border-top: 1px solid #e5e7eb;
+        margin-top: 3rem;
+    }
+    
+    .footer-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 0.5rem 1.25rem;
+        border-radius: 20px;
+        margin: 0 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(30, 60, 114, 0.2);
+    }
+    
+    /* Loading Spinner */
+    .stSpinner > div {
+        border-top-color: #2a5298 !important;
+    }
+    
+    /* Alert Messages */
+    .stAlert {
+        border-radius: 8px;
+        border-left: 4px solid;
+    }
+    
+    /* Suggestion Chips */
+    .suggestion-chip {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.95);
+        color: #1e3c72;
+        padding: 0.6rem 1.25rem;
+        border-radius: 20px;
+        margin: 0.25rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        font-weight: 500;
+    }
+    
+    .suggestion-chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        background: white;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1e3c72;
+        margin: 2rem 0 1rem 0;
+        letter-spacing: -0.3px;
+    }
+    
+    /* Smooth Transitions */
+    * {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -90,441 +341,247 @@ if "messages" not in st.session_state:
 if "api_url" not in st.session_state:
     st.session_state.api_url = "http://localhost:8088"
 
-if "voice_mode_enabled" not in st.session_state:
-    st.session_state.voice_mode_enabled = False
-
-if "last_audio_url" not in st.session_state:
-    st.session_state.last_audio_url = None
-
-if "pending_audio" not in st.session_state:
-    st.session_state.pending_audio = None
-
 def get_network_status():
     """Get current network status from AI brain"""
     try:
-        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
-        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=30)
+        response = requests.get(f"{st.session_state.api_url}/network-status", timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
     except Exception as e:
-        st.error(f"Network status error: {e}")
         return None
 
 def get_ai_status():
     """Get AI brain status"""
     try:
-        response = requests.get(f"{st.session_state.api_url}/ai-status", timeout=30)
+        response = requests.get(f"{st.session_state.api_url}/ai-status", timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
     except Exception as e:
-        st.error(f"AI status error: {e}")
         return None
 
-def send_chat_message(message, generate_audio=False):
+def send_chat_message(message):
     """Send message to AI brain and get response"""
     try:
         response = requests.post(
             f"{st.session_state.api_url}/chat",
-            json={"message": message, "generate_audio": generate_audio},
-            timeout=120
+            json={"message": message},
+            timeout=15
         )
         if response.status_code == 200:
             return response.json()
         return None
     except Exception as e:
-        st.error(f"Error connecting to AI brain: {e}")
+        st.error(f"Connection Error: {str(e)}")
         return None
 
 def display_network_status():
     """Display current network status in sidebar"""
-    st.sidebar.markdown("### 📊 Network Status")
-
+    st.sidebar.markdown("### Network Dashboard")
+    
     network_data = get_network_status()
     if network_data:
         wifi = network_data.get('network_data', {}).get('wifi', {})
         connectivity = network_data.get('network_data', {}).get('connectivity', {})
         performance = network_data.get('network_data', {}).get('performance', {})
-
+        
         # WiFi Status
         wifi_status = wifi.get('status', 'unknown')
         wifi_ssid = wifi.get('ssid', 'Unknown')
         signal_strength = wifi.get('signal_strength', 'unknown')
-
-        if wifi_status == 'connected':
-            st.sidebar.markdown(f"""
-            <div class="network-status">
-                <h4>📶 WiFi Status</h4>
-                <p><span class="status-indicator status-good"></span>Connected to: <strong>{wifi_ssid}</strong></p>
-                <p>Signal: {signal_strength} dBm</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(f"""
-            <div class="network-status">
-                <h4>📶 WiFi Status</h4>
-                <p><span class="status-indicator status-error"></span>Not Connected</p>
-            </div>
-            """, unsafe_allow_html=True)
-
+        
+        status_class = "status-good" if wifi_status == 'connected' else "status-error"
+        status_text = "Connected" if wifi_status == 'connected' else "Disconnected"
+        
+        st.sidebar.markdown(f"""
+        <div class="status-card">
+            <h4>WiFi Connection</h4>
+            <p><span class="status-indicator {status_class}"></span>{status_text}</p>
+            <p><strong>Network:</strong> {wifi_ssid}</p>
+            <p><strong>Signal Strength:</strong> {signal_strength} dBm</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Internet Status
         internet_connected = connectivity.get('internet_connected', False)
         latency = connectivity.get('latency', 'unknown')
-
-        if internet_connected:
-            st.sidebar.markdown(f"""
-            <div class="network-status">
-                <h4>🌐 Internet Status</h4>
-                <p><span class="status-indicator status-good"></span>Connected</p>
-                <p>Latency: {latency}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(f"""
-            <div class="network-status">
-                <h4>🌐 Internet Status</h4>
-                <p><span class="status-indicator status-error"></span>Not Connected</p>
-            </div>
-            """, unsafe_allow_html=True)
-
+        
+        inet_status_class = "status-good" if internet_connected else "status-error"
+        inet_status_text = "Online" if internet_connected else "Offline"
+        
+        st.sidebar.markdown(f"""
+        <div class="status-card">
+            <h4>Internet Status</h4>
+            <p><span class="status-indicator {inet_status_class}"></span>{inet_status_text}</p>
+            <p><strong>Latency:</strong> {latency}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Performance Status
         quality = performance.get('network_quality', 'unknown')
         active_connections = performance.get('active_connections', 0)
-
+        
+        quality_class = "status-good" if quality == "excellent" else "status-warning" if quality == "good" else "status-error"
+        
         st.sidebar.markdown(f"""
-        <div class="network-status">
-            <h4>⚡ Performance</h4>
-            <p>Quality: {quality.title()}</p>
-            <p>Active Connections: {active_connections}</p>
+        <div class="status-card">
+            <h4>Performance Metrics</h4>
+            <p><span class="status-indicator {quality_class}"></span>{quality.title()} Quality</p>
+            <p><strong>Active Connections:</strong> {active_connections}</p>
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.sidebar.error("❌ Unable to connect to AI brain")
+        st.sidebar.markdown("""
+        <div class="status-card">
+            <h4>Connection Status</h4>
+            <p><span class="status-indicator status-error"></span>Unable to reach AI brain</p>
+            <p style="font-size: 0.85rem; opacity: 0.8;">Verify API server is running</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 def display_ai_status():
     """Display AI brain status"""
-    st.sidebar.markdown("### 🧠 AI Brain Status")
-
+    st.sidebar.markdown("### AI Brain Status")
+    
     ai_status = get_ai_status()
     if ai_status:
         ai_model = ai_status.get('ai_model_loaded', False)
         rag_enabled = ai_status.get('rag_enabled', False)
         knowledge_size = ai_status.get('knowledge_base_size', 0)
-        tts_available = ai_status.get('tts_available', False)
-
-        if ai_model:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>🤖 AI Model</h4>
-                <p><span class="status-indicator status-good"></span>distilgpt2 Loaded</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>🤖 AI Model</h4>
-                <p><span class="status-indicator status-warning"></span>Rule-based Mode</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-        if rag_enabled:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>📚 RAG Knowledge</h4>
-                <p><span class="status-indicator status-good"></span>{knowledge_size} Items Loaded</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>📚 RAG Knowledge</h4>
-                <p><span class="status-indicator status-error"></span>Not Available</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # TTS Status
-        if tts_available:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>🔊 Voice (TTS)</h4>
-                <p><span class="status-indicator status-good"></span>Piper Available</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(f"""
-            <div class="ai-brain">
-                <h4>🔊 Voice (TTS)</h4>
-                <p><span class="status-indicator status-error"></span>Not Available</p>
-            </div>
-            """, unsafe_allow_html=True)
+        
+        model_status_class = "status-good" if ai_model else "status-warning"
+        model_status_text = "distilgpt2 Active" if ai_model else "Rule-based Mode"
+        
+        st.sidebar.markdown(f"""
+        <div class="status-card">
+            <h4>AI Model</h4>
+            <p><span class="status-indicator {model_status_class}"></span>{model_status_text}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        rag_status_class = "status-good" if rag_enabled else "status-error"
+        rag_status_text = f"{knowledge_size} Items Loaded" if rag_enabled else "Not Available"
+        
+        st.sidebar.markdown(f"""
+        <div class="status-card">
+            <h4>Knowledge Base</h4>
+            <p><span class="status-indicator {rag_status_class}"></span>{rag_status_text}</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.sidebar.error("❌ Unable to get AI brain status")
-
-def save_audio_recording(audio_bytes):
-    """Save audio recording to recordings folder"""
-    try:
-        # Create recordings folder if it doesn't exist
-        recordings_dir = os.path.join(os.path.dirname(__file__), "recordings")
-        os.makedirs(recordings_dir, exist_ok=True)
-
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"recording_{timestamp}.wav"
-        filepath = os.path.join(recordings_dir, filename)
-
-        # Save the audio file
-        with open(filepath, "wb") as f:
-            f.write(audio_bytes)
-
-        return filepath, filename
-    except Exception as e:
-        st.error(f"Error saving recording: {e}")
-        return None, None
-
-def convert_to_wav_16khz(input_file):
-    """Convert audio to 16kHz WAV format for whisper.cpp"""
-    try:
-        # Generate output filename
-        base_name = os.path.splitext(input_file)[0]
-        output_file = f"{base_name}_16khz.wav"
-
-        # Use ffmpeg to convert
-        cmd = [
-            "ffmpeg",
-            "-i", input_file,
-            "-ar", "16000",  # 16kHz sample rate
-            "-ac", "1",      # mono
-            "-c:a", "pcm_s16le",  # 16-bit PCM
-            "-y",            # overwrite output file
-            output_file
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            return output_file
-        else:
-            st.error(f"FFmpeg error: {result.stderr}")
-            return None
-    except Exception as e:
-        st.error(f"Error converting audio: {e}")
-        return None
-
-def transcribe_with_whisper(audio_file):
-    """Transcribe audio using whisper.cpp"""
-    try:
-        # Paths
-        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
-        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
-
-        # Create transcriptions folder
-        transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
-        os.makedirs(transcriptions_dir, exist_ok=True)
-
-        # Generate output file path (without extension)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_base = os.path.join(transcriptions_dir, f"transcription_{timestamp}")
-
-        # Run whisper.cpp
-        cmd = [
-            whisper_cli,
-            "-m", model_path,
-            "-f", audio_file,
-            "--output-txt",           # Output text file
-            "--output-file", output_base,
-            "-l", "en",               # English language
-            "--no-timestamps"         # Clean text without timestamps
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            # Read the generated text file
-            txt_file = f"{output_base}.txt"
-            if os.path.exists(txt_file):
-                with open(txt_file, 'r') as f:
-                    transcription = f.read().strip()
-                return transcription, txt_file
-            else:
-                st.error("Transcription file not found")
-                return None, None
-        else:
-            st.error(f"Whisper error: {result.stderr}")
-            return None, None
-    except Exception as e:
-        st.error(f"Error transcribing audio: {e}")
-        return None, None
-
-def process_voice_input(audio_bytes):
-    """Process voice input automatically in background"""
-    # Save recording
-    filepath, filename = save_audio_recording(audio_bytes)
-
-    if not filepath:
-        return None
-
-    # Convert to 16kHz WAV
-    converted_file = convert_to_wav_16khz(filepath)
-
-    if not converted_file:
-        return None
-
-    # Transcribe with Whisper
-    transcription, txt_file = transcribe_with_whisper(converted_file)
-
-    return transcription
+        st.sidebar.markdown("""
+        <div class="status-card">
+            <h4>System Status</h4>
+            <p><span class="status-indicator status-error"></span>Status unavailable</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 def main():
     """Main application"""
     # Header
-    st.title(" AI Network Brain")
-    st.markdown("**Intelligent network analysis powered by RAG + lightweight AI model**")
-
+    st.markdown("""
+    <div class="main-header">
+        <h1>AI Network Brain</h1>
+        <p>Intelligent Network Analysis • Real-time Monitoring • Smart Diagnostics</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Sidebar
     with st.sidebar:
-        st.markdown("### 🔧 Settings")
-        api_url = st.text_input("API URL", value=st.session_state.api_url, help="URL of the AI brain API server")
+        st.markdown("### Configuration")
+        api_url = st.text_input("API Endpoint", value=st.session_state.api_url, 
+                                help="URL of the AI brain API server")
         if api_url != st.session_state.api_url:
             st.session_state.api_url = api_url
             st.rerun()
-
-        # Voice mode toggle
-        st.markdown("---")
-        st.markdown("### 🎙️ Voice Mode")
-        voice_mode = st.checkbox(
-            "Enable Voice Responses",
-            value=st.session_state.voice_mode_enabled,
-            help="AI will speak responses using Piper TTS"
-        )
-        if voice_mode != st.session_state.voice_mode_enabled:
-            st.session_state.voice_mode_enabled = voice_mode
-
+        
         st.markdown("---")
         display_network_status()
-
+        
         st.markdown("---")
         display_ai_status()
-
+        
         st.markdown("---")
-        st.markdown("### 💡 Ask the AI Brain")
+        st.markdown("### Quick Actions")
         st.markdown("""
-        **Try asking:**
-        - "What's wrong with my WiFi?"
-        - "My internet is slow, help me"
-        - "How can I improve my signal?"
-        - "Check my network security"
-        - "Why is my connection dropping?"
-        """)
-
-    # Chat interface
-    st.markdown("### 💬 Chat with AI Brain")
-
+        <div style="padding: 1rem 0;">
+            <p style="font-size: 0.85rem; margin-bottom: 0.75rem; opacity: 0.9;">Common queries:</p>
+            <div class="suggestion-chip">Check WiFi Status</div>
+            <div class="suggestion-chip">Diagnose Slow Internet</div>
+            <div class="suggestion-chip">Security Analysis</div>
+            <div class="suggestion-chip">Network Statistics</div>
+            <div class="suggestion-chip">Optimize Performance</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Main chat interface
+    st.markdown('<p class="section-header">Conversation</p>', unsafe_allow_html=True)
+    
     # Display chat messages
-    for idx, message in enumerate(st.session_state.messages):
+    for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            # Show audio player for assistant messages if audio URL is stored
-            if message["role"] == "assistant" and "audio_url" in message:
-                st.audio(message["audio_url"], format="audio/wav")
-
-    # Voice input section - positioned near chat input
-    st.markdown("#### 🎤 Voice Input or Type Below")
-    col_voice, col_text = st.columns([1, 5])
-
-    with col_voice:
-        audio_bytes = audio_recorder(
-            text="",
-            recording_color="#e74c3c",
-            neutral_color="#3498db",
-            icon_name="microphone",
-            icon_size="2x",
-            key="voice_input"
-        )
-
-    # Auto-process voice input when new recording detected
-    if audio_bytes and audio_bytes != st.session_state.pending_audio:
-        st.session_state.pending_audio = audio_bytes
-
-        # Process voice in background with single spinner
-        with st.spinner("🎙️ Processing voice → Transcribing → Getting AI response..."):
-            transcription = process_voice_input(audio_bytes)
-
-            if transcription:
-                # Add user message
-                st.session_state.messages.append({"role": "user", "content": transcription})
-
-                # Get AI response
-                response = send_chat_message(transcription, generate_audio=st.session_state.voice_mode_enabled)
-
-                if response:
-                    ai_response = response.get('response', 'Sorry, I could not process your request.')
-                    audio_url = response.get('audio_url')
-
-                    # Build message with audio URL if available
-                    message_data = {"role": "assistant", "content": ai_response}
-                    if audio_url:
-                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
-                        message_data["audio_url"] = full_audio_url
-                        st.session_state.last_audio_url = full_audio_url
-
-                    st.session_state.messages.append(message_data)
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to get AI response")
-            else:
-                st.error("❌ Voice transcription failed")
-
+    
     # Chat input
-    if prompt := st.chat_input("Ask the AI brain about your network..."):
+    if prompt := st.chat_input("Ask me anything about your network..."):
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
+        
         # Get AI brain response
         with st.chat_message("assistant"):
-            with st.spinner("🧠 AI brain is analyzing your network..."):
-                response = send_chat_message(prompt, generate_audio=st.session_state.voice_mode_enabled)
-
+            with st.spinner("Analyzing your network..."):
+                response = send_chat_message(prompt)
+                
                 if response:
                     ai_response = response.get('response', 'Sorry, I could not process your request.')
-                    audio_url = response.get('audio_url')
-
                     st.markdown(ai_response)
-
-                    # Play audio if available
-                    if audio_url and st.session_state.voice_mode_enabled:
-                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
-                        st.audio(full_audio_url, format="audio/wav", autoplay=True)
-
-                    # Show AI brain status
+                    
+                    # Show AI brain analysis details
                     ai_model_used = response.get('ai_model_used', False)
                     rag_enabled = response.get('rag_enabled', False)
-
-                    with st.expander("🧠 AI Brain Analysis Details"):
-                        st.write(f"**AI Model Used:** {'Yes (distilgpt2)' if ai_model_used else 'No (rule-based)'}")
-                        st.write(f"**RAG Knowledge:** {'Enabled' if rag_enabled else 'Disabled'}")
-                        st.write(f"**Voice Response:** {'Yes' if audio_url else 'No'}")
-                        st.write(f"**Response Time:** {response.get('timestamp', 'Unknown')}")
-
-                    # Add AI response to messages with audio URL
-                    message_data = {"role": "assistant", "content": ai_response}
-                    if audio_url and st.session_state.voice_mode_enabled:
-                        message_data["audio_url"] = f"{st.session_state.api_url}{audio_url}"
-                    st.session_state.messages.append(message_data)
+                    
+                    with st.expander("View Analysis Details"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <div class="metric-label">AI Model</div>
+                                <div class="metric-value">{'Active' if ai_model_used else 'Inactive'}</div>
+                                <p style="margin: 0; color: #6b7280; font-size: 0.9rem;">{'distilgpt2' if ai_model_used else 'Rule-based'}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        with col2:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <div class="metric-label">RAG Knowledge</div>
+                                <div class="metric-value">{'Enabled' if rag_enabled else 'Disabled'}</div>
+                                <p style="margin: 0; color: #6b7280; font-size: 0.9rem;">{'Context-aware' if rag_enabled else 'Standard'}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        st.markdown(f"**Response Timestamp:** {response.get('timestamp', 'Unknown')}")
+                    
+                    # Add AI response to messages
+                    st.session_state.messages.append({"role": "assistant", "content": ai_response})
                 else:
-                    st.error("❌ Failed to get response from AI brain. Please check if the API server is running.")
-
+                    error_msg = "Unable to connect to AI brain. Please verify the API server is running and accessible."
+                    st.error(error_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+    
     # Footer
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("**AI Brain:** RAG + distilgpt2")
-    with col2:
-        st.markdown("**Analysis:** Real-time CLI")
-    with col3:
-        st.markdown("**Version:** 8.0.0")
+    st.markdown("""
+    <div class="footer">
+        <span class="footer-badge">RAG + distilgpt2</span>
+        <span class="footer-badge">Real-time Analysis</span>
+        <span class="footer-badge">v7.0.0</span>
+        <p style="margin-top: 1rem; font-size: 0.85rem;">
+            Enterprise Network Intelligence Platform
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
