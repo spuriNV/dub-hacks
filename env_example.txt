@@ -1,0 +1,5 @@
+# Statsig Configuration
+STATSIG_SECRET_KEY=your_statsig_secret_key_here
+
+# Example:
+# STATSIG_SECRET_KEY=secret-gfkbRyexczdpYgd52rFF6IEOB8VVTfBDVzW8SIMW0Zn

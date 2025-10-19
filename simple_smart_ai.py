@@ -21,6 +21,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import bash_cmd
 from network_diagnostics import get_diagnostics
+from statsig_python_core import Statsig, StatsigUser, StatsigOptions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +35,80 @@ class SimpleSmartAI:
         self.knowledge_base = []
         self.embeddings = None
         self.test_mode = test_mode  # Enable test mode to simulate problems
+        self.current_model_name = None
+        self.statsig_initialized = False
+        
         logger.info("🤖 Simple Smart AI initialized!")
+        self.initialize_statsig()
         self.setup_rag_system()
         self.load_ai_model()
+    
+    def initialize_statsig(self):
+        """Initialize Statsig for A/B testing between models"""
+        try:
+            options = StatsigOptions()
+            options.environment = "development"
+            statsig_secret = os.getenv("STATSIG_SECRET_KEY", "secret-gfkbRyexczdpYgd52rFF6IEOB8VVTfBDVzW8SIMW0Zn")
+            self.statsig = Statsig(statsig_secret, options)
+            self.statsig.initialize().wait()
+            self.statsig_initialized = True
+            logger.info("📊 Statsig initialized successfully!")
+        except Exception as e:
+            logger.warning(f"⚠️ Statsig initialization failed: {e}")
+            self.statsig_initialized = False
+    
+    def get_model_from_statsig(self, user_id: str = "default_user") -> str:
+        """Get model selection from Statsig experiment - only 2 models"""
+        if not self.statsig_initialized:
+            # Fallback to default model if Statsig not available
+            return "Qwen/Qwen2-0.5B"
+        
+        try:
+            # Create user object for Statsig
+            user = StatsigUser(user_id=user_id)
+            
+            # Get experiment result
+            experiment = self.statsig.get_experiment(user, "wifi_assistant_model_test")
+            model_name = experiment.get_string("model_name", "Qwen/Qwen2-0.5B")
+            
+            # Validate that only our 2 models are used
+            valid_models = ["Qwen/Qwen2-0.5B", "TinyLlama/TinyLlama-1.1B-Chat-v1.0"]
+            if model_name not in valid_models:
+                logger.warning(f"⚠️ Invalid model from Statsig: {model_name}, using default")
+                return "Qwen/Qwen2-0.5B"
+            
+            logger.info(f"📊 Statsig selected model: {model_name}")
+            return model_name
+        except Exception as e:
+            logger.warning(f"⚠️ Statsig experiment failed: {e}")
+            return "Qwen/Qwen2-0.5B"  # Fallback to default
+    
+    def _track_user_activity(self, user_id: str):
+        """Track user activity for Statsig metrics: new_mau_28d and monthly_stickiness"""
+        if not self.statsig_initialized:
+            return
+        
+        try:
+            # Create user object for Statsig
+            user = StatsigUser(user_id=user_id)
+            
+            # Track new_mau_28d (New Monthly Active Users in 28 days)
+            self.statsig.log_event(user, "new_mau_28d")
+            
+            # Track monthly_stickiness (how often users return)
+            self.statsig.log_event(user, "monthly_stickiness")
+            
+            logger.info(f"📊 Tracked user activity for {user_id} with model {self.current_model_name}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to track user activity: {e}")
+    
+    def _track_response_metrics(self, user_id: str, message: str, response: str, network_data: Dict[str, Any]):
+        """Track only the allowed Statsig events: new_mau_28d and monthly_stickiness"""
+        # Only track the two events you can use
+        # This method is kept for consistency but only logs the allowed events
+        logger.info(f"📊 Response generated for {user_id} with model {self.current_model_name}")
+        # Note: response_quality and network_healthy events are not available in your Statsig setup
     
     def setup_rag_system(self):
         """Setup RAG system with WiFi troubleshooting knowledge"""
@@ -63,12 +135,13 @@ class SimpleSmartAI:
             logger.error(f"RAG setup error: {e}")
             self.vectorizer = None
     
-    def load_ai_model(self):
-        """Load a lightweight Hugging Face model for text generation"""
-        logger.info("🤖 Loading lightweight AI model...")
+    def load_ai_model(self, user_id: str = "default_user"):
+        """Load AI model based on Statsig experiment"""
+        logger.info("🤖 Loading AI model...")
         try:
-            # Use a very lightweight, open model
-            model_name = "Qwen/Qwen2.5-0.5B"
+            # Get model selection from Statsig experiment
+            model_name = self.get_model_from_statsig(user_id)
+            self.current_model_name = model_name
             
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -250,7 +323,7 @@ class SimpleSmartAI:
 
         # Get relevant knowledge for RAG
         relevant_knowledge = self.retrieve_relevant_knowledge(user_question, network_data)
-
+        
         # Step 3: Generate response with diagnostic data + fix results
         if self.model and self.tokenizer:
             return self._generate_ai_text(user_question, network_data, relevant_knowledge, diagnostic_results, fix_results)
@@ -340,7 +413,7 @@ Response:"""
                 context_parts.append(f"Knowledge: {knowledge.get('title', '')}")
         
         return " | ".join(context_parts)
-
+    
     def _format_response_with_fixes(self, base_response: str, fix_results: Dict[str, Any] = None) -> str:
         """Format response with automatic fix results prepended"""
         if not fix_results:
@@ -370,27 +443,16 @@ Response:"""
         wifi = network_data.get('wifi', {})
         connectivity = network_data.get('connectivity', {})
         performance = network_data.get('performance', {})
-
+        
         # Analyze the question and network state to give appropriate response
-        question_lower = user_question.lower().strip()
-
-        # Hardcoded demo responses for exact query matches
-        demo_responses = {
-            "my webpages are loading very slowly.": "Seems like even though the webpage is loading slowly, your network speeds and latency indicate a strong connection. The issue is likely with the website's servers and not on your end.",
-            "my wifi keeps disconnecting.": "Seems like your wifi signal strength is low, you may be able to improve it by moving closer to your router with less walls between your devices.",
-            "can you check that i am on the best possible wifi band?": "You were on the 2.4GHz which is less than ideal for bandwidth. I went ahead and swapped you over to the 5GHz band. Your before download speed: 1.2mbps. After download speed: 6.2mbps."
-        }
-
-        # Check for exact match with demo queries (case-insensitive)
-        if question_lower in demo_responses:
-            return demo_responses[question_lower]
-
+        question_lower = user_question.lower()
+        
         # Get actual network status for intelligent decision making
         is_wifi_connected = wifi.get('status') == 'connected'
         is_internet_working = connectivity.get('internet_connected', False)
         signal_strength = wifi.get('signal_strength', 'unknown')
         latency = connectivity.get('latency', 'unknown')
-
+        
         # Determine if there are actual network problems based on real data
         has_actual_problems = self._detect_actual_network_problems(network_data)
         
@@ -542,7 +604,7 @@ Response:"""
                 response_parts.append("\nI can test both bands and switch you to the fastest one. This will take about 30-60 seconds.")
 
             return "\n".join(response_parts)
-
+        
         # If asking about WiFi status and it's connected
         elif any(word in question_lower for word in ['wifi', 'network', 'connected', 'connection']) and wifi.get('status') == 'connected':
             ssid = wifi.get('ssid', 'your network')
@@ -1106,7 +1168,7 @@ Response:"""
             analysis_parts.append(f"🌐 Internet: Connected ({latency})")
         else:
             analysis_parts.append("🌐 Internet: Not connected")
-
+        
         base_response = "\n".join(analysis_parts)
         return self._format_response_with_fixes(base_response, fix_results)
     
@@ -1208,7 +1270,7 @@ Response:"""
         try:
             system = platform.system()
             logger.info(f"🔍 Detecting network on platform: {system}")
-
+            
             if system == "Darwin":  # macOS
                 # Check if we have an IP address (indicates WiFi connection)
                 try:
@@ -1266,13 +1328,13 @@ Response:"""
                         wifi_output = result.stdout
                         ssid_match = re.search(r'ESSID:"([^"]+)"', wifi_output)
                         signal_match = re.search(r'Signal level=(-?\d+)', wifi_output)
-
-                        wifi_info.update({
-                            "status": "connected" if "ESSID:" in wifi_output else "disconnected",
-                            "ssid": ssid_match.group(1) if ssid_match else "Unknown",
-                            "signal_strength": signal_match.group(1) if signal_match else "unknown",
-                            "interface": "wlan0"
-                        })
+                        
+                    wifi_info.update({
+                        "status": "connected" if "ESSID:" in wifi_output else "disconnected",
+                        "ssid": ssid_match.group(1) if ssid_match else "Unknown",
+                        "signal_strength": signal_match.group(1) if signal_match else "unknown",
+                        "interface": "wlan0"
+                    })
                 except Exception as e:
                     # iwconfig not available (WSL) - check if we have internet via ip addr
                     logger.info(f"📡 iwconfig failed ({e}), trying WSL fallback with ip addr...")
@@ -1710,9 +1772,12 @@ Response:"""
                 "total_failed": 1
             }
     
-    def chat(self, message: str) -> Dict[str, Any]:
+    def chat(self, message: str, user_id: str = "default_user") -> Dict[str, Any]:
         """Main chat function with RAG + AI model"""
         logger.info(f"User question: {message}")
+        
+        # Track user activity for Statsig metrics
+        self._track_user_activity(user_id)
         
         # Get network data with smart collection based on question
         network_data = self.get_network_data(message)
@@ -1722,6 +1787,9 @@ Response:"""
         
         # Generate AI response using RAG + model
         response = self.generate_ai_response(message, network_data)
+        
+        # Track response quality and success metrics
+        self._track_response_metrics(user_id, message, response, network_data)
         
         return {
             "response": response,
@@ -1985,3 +2053,4 @@ if __name__ == "__main__":
         result = ai.chat(question)
         print(f"🤖 AI: {result['response']}")
         print("-" * 30)
+
