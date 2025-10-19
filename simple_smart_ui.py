@@ -109,9 +109,10 @@ def get_network_status():
     """Get current network status from AI brain"""
     try:
         # Add timestamp to prevent caching
+        # Extended timeout to 30s for operations that take longer
         response = requests.get(
             f"{st.session_state.api_url}/network-status?t={int(time.time() * 1000)}",
-            timeout=5,
+            timeout=30,
             headers={'Cache-Control': 'no-cache'}
         )
         if response.status_code == 200:
