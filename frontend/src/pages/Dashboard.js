@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "../api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, AlertCircle, Brain } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import MessageBubble from "../components/chat/MessageBubble";
 import ChatInput from "../components/chat/ChatInput";
@@ -10,6 +10,7 @@ import InternetStatus from "../components/status/InternetStatus";
 import PerformanceStatus from "../components/status/PerformanceStatus";
 import SettingsPanel from "../components/settings/SettingsPanel";
 import SuggestionsList from "../components/suggestions/SuggestionsList";
+import logo from "../assets/logo.png";
 
 export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -282,11 +283,11 @@ export default function Dashboard() {
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500/30 to-indigo-500/30 flex items-center justify-center backdrop-blur-xl border border-white/20">
-                      <Brain className="w-10 h-10 text-white" />
+                    <div className="w-32 h-32 mx-auto mb-4 flex items-center justify-center">
+                      <img src={logo} alt="IT-Mobile Logo" className="w-full h-full object-contain" />
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">
-                      Welcome to AI Network Brain
+                      Welcome to IT-Mobile
                     </h3>
                     <p className="text-blue-200 mb-4">
                       Ask me anything about your network!
@@ -301,13 +302,13 @@ export default function Dashboard() {
               
               {isProcessing && (
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center backdrop-blur-xl border border-white/20">
-                    <Brain className="w-5 h-5 text-white" />
+                  <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
+                    <img src={logo} alt="IT-Mobile" className="w-10 h-10 object-contain" />
                   </div>
                   <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 text-white animate-spin" />
-                      <span className="text-white text-sm">AI brain is analyzing...</span>
+                      <span className="text-white text-sm">IT-Mobile is analyzing...</span>
                     </div>
                   </div>
                 </div>

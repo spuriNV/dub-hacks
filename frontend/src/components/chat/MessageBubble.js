@@ -117,7 +117,7 @@ export default function MessageBubble({ message, index }) {
                     <div className="flex justify-between">
                       <span className="text-purple-200">AI Model:</span>
                       <span className="text-white font-medium">
-                        {message.ai_model_used ? "distilgpt2" : "Rule-based"}
+                        {message.ai_model_used ? "Qwen/Qwen2-0.5B" : "Rule-based"}
                       </span>
                     </div>
                     <div className="flex justify-between">

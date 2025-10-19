@@ -29,7 +29,7 @@ export default function AIStatus({ aiData }) {
         <div className="flex justify-between">
           <span className="text-pink-200">Status:</span>
           <span className="text-white font-medium">
-            {aiData.ai_model_loaded ? "distilgpt2 Loaded" : "Rule-based Mode"}
+            {aiData.ai_model_loaded ? "Qwen/Qwen2-0.5B Loaded" : "Rule-based Mode"}
           </span>
         </div>
       </StatusCard>
