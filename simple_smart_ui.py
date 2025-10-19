@@ -1,113 +1,57 @@
 #!/usr/bin/env python3
 """
 Simple Smart AI Chatbot UI
-Streamlit interface for the AI brain
+Flask server that serves React frontend and proxies API requests to AI brain
 """
 
-import streamlit as st
+from flask import Flask, send_from_directory, jsonify, request
+from flask_cors import CORS
 import requests
-import json
-import time
 import os
+import logging
 import subprocess
 from datetime import datetime
-from audio_recorder_streamlit import audio_recorder
+from werkzeug.utils import secure_filename
+from piper_tts_module import get_piper_tts
 
-# Configure Streamlit page
-st.set_page_config(
-    page_title="AI Network Brain",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Configure Flask app
+app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+CORS(app)  # Enable CORS for frontend
 
-# Custom CSS for better UI
-st.markdown("""
-<style>
-    .chat-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: flex-start;
-    }
-    .chat-message.user {
-        background-color: #2b313e;
-        color: white;
-    }
-    .chat-message.assistant {
-        background-color: #f0f2f6;
-        color: black;
-    }
-    .chat-message .avatar {
-        width: 2rem;
-        height: 2rem;
-        border-radius: 50%;
-        margin-right: 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
-    }
-    .network-status {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    .status-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 0.5rem;
-    }
-    .status-good { background-color: #4CAF50; }
-    .status-warning { background-color: #FF9800; }
-    .status-error { background-color: #F44336; }
-    .ai-brain {
-        background: linear-gradient(90deg, #ff6b6b 0%, #4ecdc4 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        text-align: center;
-    }
-    .voice-input-container {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# AI Brain API configuration
+AI_BRAIN_API_URL = os.getenv('AI_BRAIN_API_URL', 'http://localhost:8088')
 
-if "api_url" not in st.session_state:
-    st.session_state.api_url = "http://localhost:8088"
+# Initialize Piper TTS
+logger.info("Initializing Piper TTS...")
+piper_tts = get_piper_tts()
+if piper_tts.piper_available:
+    logger.info("✅ Piper TTS ready!")
+else:
+    logger.warning("⚠️  Piper TTS not available")
 
-if "voice_mode_enabled" not in st.session_state:
-    st.session_state.voice_mode_enabled = False
+# Voice recording configuration
+RECORDINGS_FOLDER = os.path.join(os.path.dirname(__file__), 'recordings')
+REPLIES_FOLDER = os.path.join(os.path.dirname(__file__), 'replies')
+AUDIO_FOLDER = os.path.join(os.path.dirname(__file__), 'audio')
+ALLOWED_EXTENSIONS = {'wav', 'webm', 'mp3', 'ogg', 'm4a'}
 
-if "last_audio_url" not in st.session_state:
-    st.session_state.last_audio_url = None
+# Create folders if they don't exist
+os.makedirs(RECORDINGS_FOLDER, exist_ok=True)
+os.makedirs(REPLIES_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-if "pending_audio" not in st.session_state:
-    st.session_state.pending_audio = None
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-if "auto_refresh" not in st.session_state:
-    st.session_state.auto_refresh = False
-
-if "last_refresh_time" not in st.session_state:
-    st.session_state.last_refresh_time = time.time()
-
-def get_network_status():
-    """Get current network status from AI brain"""
+def convert_to_wav(input_file):
+    """Convert audio to WAV format using ffmpeg"""
     try:
+<<<<<<< Updated upstream
         # Add timestamp to prevent caching
         # Extended timeout to 30s for operations that take longer
         response = requests.get(
@@ -305,261 +249,259 @@ def convert_to_wav_16khz(input_file):
         output_file = f"{base_name}_16khz.wav"
 
         # Use ffmpeg to convert
+=======
+        output_file = input_file.rsplit('.', 1)[0] + '_converted.wav'
+>>>>>>> Stashed changes
         cmd = [
-            "ffmpeg",
-            "-i", input_file,
-            "-ar", "16000",  # 16kHz sample rate
-            "-ac", "1",      # mono
-            "-c:a", "pcm_s16le",  # 16-bit PCM
-            "-y",            # overwrite output file
+            'ffmpeg', '-i', input_file,
+            '-ar', '16000',  # 16kHz sample rate
+            '-ac', '1',      # mono
+            '-c:a', 'pcm_s16le',  # 16-bit PCM
+            '-y',            # overwrite
             output_file
         ]
-
         result = subprocess.run(cmd, capture_output=True, text=True)
-
         if result.returncode == 0:
             return output_file
         else:
-            st.error(f"FFmpeg error: {result.stderr}")
+            logger.error(f"FFmpeg error: {result.stderr}")
             return None
     except Exception as e:
-        st.error(f"Error converting audio: {e}")
+        logger.error(f"Audio conversion error: {e}")
         return None
 
-def transcribe_with_whisper(audio_file):
-    """Transcribe audio using whisper.cpp"""
+def transcribe_audio(audio_file):
+    """
+    Transcribe audio using Whisper.cpp or Web Speech API
+    Replace this with actual Whisper implementation
+    """
     try:
-        # Paths
-        whisper_cli = "/home/mla436/whisper.cpp/build/bin/whisper-cli"
-        model_path = "/home/mla436/whisper.cpp/models/ggml-tiny.bin"
-
-        # Create transcriptions folder
-        transcriptions_dir = os.path.join(os.path.dirname(__file__), "transcriptions")
-        os.makedirs(transcriptions_dir, exist_ok=True)
-
-        # Generate output file path (without extension)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_base = os.path.join(transcriptions_dir, f"transcription_{timestamp}")
-
-        # Run whisper.cpp
-        cmd = [
-            whisper_cli,
-            "-m", model_path,
-            "-f", audio_file,
-            "--output-txt",           # Output text file
-            "--output-file", output_base,
-            "-l", "en",               # English language
-            "--no-timestamps"         # Clean text without timestamps
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            # Read the generated text file
-            txt_file = f"{output_base}.txt"
-            if os.path.exists(txt_file):
-                with open(txt_file, 'r') as f:
-                    transcription = f.read().strip()
-                return transcription, txt_file
-            else:
-                st.error("Transcription file not found")
-                return None, None
-        else:
-            st.error(f"Whisper error: {result.stderr}")
-            return None, None
+        # Check if Whisper.cpp is available
+        whisper_cli = os.path.expanduser("~/whisper.cpp/build/bin/whisper-cli")
+        model_path = os.path.expanduser("~/whisper.cpp/models/ggml-tiny.bin")
+        
+        if os.path.exists(whisper_cli) and os.path.exists(model_path):
+            # Use Whisper.cpp
+            output_base = audio_file.rsplit('.', 1)[0]
+            cmd = [
+                whisper_cli,
+                '-m', model_path,
+                '-f', audio_file,
+                '--output-txt',
+                '--output-file', output_base,
+                '-l', 'en',
+                '--no-timestamps'
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                txt_file = f"{output_base}.txt"
+                if os.path.exists(txt_file):
+                    with open(txt_file, 'r') as f:
+                        transcription = f.read().strip()
+                    return transcription
+        
+        # Fallback: Return a message that transcription is pending
+        logger.warning("Whisper not available, returning placeholder")
+        return "[Whisper transcription pending - please set up Whisper.cpp or use Web Speech API]"
+        
     except Exception as e:
-        st.error(f"Error transcribing audio: {e}")
-        return None, None
+        logger.error(f"Transcription error: {e}")
+        return f"[Transcription error: {str(e)}]"
 
-def process_voice_input(audio_bytes):
-    """Process voice input automatically in background"""
-    # Save recording
-    filepath, filename = save_audio_recording(audio_bytes)
+# Routes
 
-    if not filepath:
-        return None
+@app.route('/')
+def serve_frontend():
+    """Serve the React frontend"""
+    return send_from_directory(app.static_folder, 'index.html')
 
-    # Convert to 16kHz WAV
-    converted_file = convert_to_wav_16khz(filepath)
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files from React build"""
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
-    if not converted_file:
-        return None
+@app.route('/api/network-status', methods=['GET'])
+def network_status():
+    """Proxy network status request to AI brain"""
+    try:
+        response = requests.get(
+            f"{AI_BRAIN_API_URL}/network-status",
+            timeout=5,
+            headers={'Cache-Control': 'no-cache'}
+        )
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Network status error: {e}")
+        return jsonify({"error": str(e)}), 500
 
-    # Transcribe with Whisper
-    transcription, txt_file = transcribe_with_whisper(converted_file)
+@app.route('/api/ai-status', methods=['GET'])
+def ai_status():
+    """Proxy AI status request to AI brain"""
+    try:
+        response = requests.get(f"{AI_BRAIN_API_URL}/ai-status", timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"AI status error: {e}")
+        return jsonify({"error": str(e)}), 500
 
-    return transcription
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Proxy chat request to AI brain and generate TTS if enabled"""
+    try:
+        data = request.get_json()
+        generate_audio = data.get('generate_audio', False)
+        
+        logger.info(f"🗣️  Chat request received. TTS enabled: {generate_audio}")
+        
+        # Forward request to AI brain (without TTS, we'll handle that ourselves)
+        ai_data = dict(data)
+        ai_data['generate_audio'] = False  # Don't let AI brain generate audio
+        
+        response = requests.post(
+            f"{AI_BRAIN_API_URL}/chat",
+            json=ai_data,
+            timeout=120
+        )
+        
+        if response.ok:
+            result = response.json()
+            ai_response_text = result.get('response', '')
+            
+            logger.info(f"📝 AI Response received: {ai_response_text[:100]}...")
+            
+            # If TTS is enabled and we have a response
+            if generate_audio and ai_response_text and piper_tts.piper_available:
+                logger.info("🎵 TTS enabled - generating audio...")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # Save the reply text to replies folder
+                reply_filename = f"reply_{timestamp}.txt"
+                reply_filepath = os.path.join(REPLIES_FOLDER, reply_filename)
+                with open(reply_filepath, 'w') as f:
+                    f.write(ai_response_text)
+                logger.info(f"✅ Saved reply text: {reply_filepath}")
+                
+                # Generate audio using Piper TTS
+                audio_filename = f"reply_{timestamp}.wav"
+                audio_filepath = os.path.join(AUDIO_FOLDER, audio_filename)
+                
+                logger.info(f"🔊 Generating TTS audio to: {audio_filepath}")
+                success = piper_tts.text_to_speech(
+                    text=ai_response_text,
+                    output_file=audio_filepath,
+                    max_length=500
+                )
+                
+                if success:
+                    logger.info(f"✅ Generated TTS audio: {audio_filepath}")
+                    result['audio_url'] = f"/audio/{audio_filename}"
+                else:
+                    logger.error("❌ TTS generation failed")
+            elif not generate_audio:
+                logger.info("🔇 TTS disabled by user")
+            elif not piper_tts.piper_available:
+                logger.warning("⚠️  Piper TTS not available")
+            elif not ai_response_text:
+                logger.warning("⚠️  No response text to convert to speech")
+            
+            return jsonify(result), response.status_code
+        else:
+            logger.error(f"❌ AI Brain error: {response.status_code}")
+            return jsonify(response.json()), response.status_code
+            
+    except Exception as e:
+        logger.error(f"❌ Chat error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/voice', methods=['POST'])
+def voice():
+    """Handle voice input - save recording and transcribe"""
+    try:
+        # Check if audio file is in request
+        if 'audio' not in request.files:
+            return jsonify({
+                "error": "No audio file provided",
+                "success": False
+            }), 400
+        
+        audio_file = request.files['audio']
+        
+        if audio_file.filename == '':
+            return jsonify({
+                "error": "No file selected",
+                "success": False
+            }), 400
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        original_extension = audio_file.filename.rsplit('.', 1)[1].lower() if '.' in audio_file.filename else 'webm'
+        filename = f"recording_{timestamp}.{original_extension}"
+        filepath = os.path.join(RECORDINGS_FOLDER, filename)
+        
+        # Save the original recording
+        audio_file.save(filepath)
+        logger.info(f"Saved recording: {filepath}")
+        
+        # Convert to WAV if needed
+        if original_extension != 'wav':
+            wav_file = convert_to_wav(filepath)
+            if wav_file:
+                filepath = wav_file
+                logger.info(f"Converted to WAV: {wav_file}")
+        
+        # Transcribe the audio
+        transcription = transcribe_audio(filepath)
+        logger.info(f"Transcription: {transcription}")
+        
+        return jsonify({
+            "transcription": transcription,
+            "success": True,
+            "filename": filename,
+            "saved_path": filepath
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Voice error: {e}")
+        return jsonify({
+            "error": str(e),
+            "success": False
+        }), 500
+
+# Serve audio files (locally generated by Piper TTS)
+@app.route('/audio/<path:filename>')
+def serve_audio(filename):
+    """Serve audio files generated by Piper TTS"""
+    try:
+        audio_path = os.path.join(AUDIO_FOLDER, filename)
+        if os.path.exists(audio_path):
+            return send_from_directory(AUDIO_FOLDER, filename, mimetype='audio/wav')
+        else:
+            # Fallback: try to get from AI brain
+            response = requests.get(f"{AI_BRAIN_API_URL}/audio/{filename}", stream=True)
+            return response.content, response.status_code, {'Content-Type': 'audio/wav'}
+    except Exception as e:
+        logger.error(f"Audio error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 def main():
-    """Main application"""
-    # Header
-    st.title("🧠 AI Network Brain")
-    st.markdown("**Intelligent network analysis powered by RAG + lightweight AI model**")
-
-    # Sidebar
-    with st.sidebar:
-        st.markdown("### 🔧 Settings")
-        api_url = st.text_input("API URL", value=st.session_state.api_url, help="URL of the AI brain API server")
-        if api_url != st.session_state.api_url:
-            st.session_state.api_url = api_url
-            st.rerun()
-
-        # Voice mode toggle
-        st.markdown("---")
-        st.markdown("### 🎙️ Voice Mode")
-        voice_mode = st.checkbox(
-            "Enable Voice Responses",
-            value=st.session_state.voice_mode_enabled,
-            help="AI will speak responses using Piper TTS"
-        )
-        if voice_mode != st.session_state.voice_mode_enabled:
-            st.session_state.voice_mode_enabled = voice_mode
-
-        # Auto-refresh toggle
-        st.markdown("### 🔄 Auto-Refresh")
-        auto_refresh = st.checkbox(
-            "Auto-refresh network status (1s)",
-            value=st.session_state.auto_refresh,
-            help="Automatically update network status every second"
-        )
-        if auto_refresh != st.session_state.auto_refresh:
-            st.session_state.auto_refresh = auto_refresh
-
-        st.markdown("---")
-        display_network_status()
-
-        st.markdown("---")
-        display_ai_status()
-
-        st.markdown("---")
-        st.markdown("### 💡 Ask the AI Brain")
-        st.markdown("""
-        **Try asking:**
-        - "What's wrong with my WiFi?"
-        - "My internet is slow, help me"
-        - "How can I improve my signal?"
-        - "Check my network security"
-        - "Why is my connection dropping?"
-        """)
-
-    # Chat interface
-    st.markdown("### 💬 Chat with AI Brain")
-
-    # Display chat messages
-    for idx, message in enumerate(st.session_state.messages):
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            # Show audio player for assistant messages if audio URL is stored
-            if message["role"] == "assistant" and "audio_url" in message:
-                st.audio(message["audio_url"], format="audio/wav")
-
-    # Voice input section - positioned near chat input
-    st.markdown("#### 🎤 Voice Input or Type Below")
-    col_voice, col_text = st.columns([1, 5])
-
-    with col_voice:
-        audio_bytes = audio_recorder(
-            text="",
-            recording_color="#e74c3c",
-            neutral_color="#3498db",
-            icon_name="microphone",
-            icon_size="2x",
-            key="voice_input"
-        )
-
-    # Auto-process voice input when new recording detected
-    if audio_bytes and audio_bytes != st.session_state.pending_audio:
-        st.session_state.pending_audio = audio_bytes
-
-        # Process voice in background with single spinner
-        with st.spinner("🎙️ Processing voice → Transcribing → Getting AI response..."):
-            transcription = process_voice_input(audio_bytes)
-
-            if transcription:
-                # Add user message
-                st.session_state.messages.append({"role": "user", "content": transcription})
-
-                # Get AI response
-                response = send_chat_message(transcription, generate_audio=st.session_state.voice_mode_enabled)
-
-                if response:
-                    ai_response = response.get('response', 'Sorry, I could not process your request.')
-                    audio_url = response.get('audio_url')
-
-                    # Build message with audio URL if available
-                    message_data = {"role": "assistant", "content": ai_response}
-                    if audio_url:
-                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
-                        message_data["audio_url"] = full_audio_url
-                        st.session_state.last_audio_url = full_audio_url
-
-                    st.session_state.messages.append(message_data)
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to get AI response")
-            else:
-                st.error("❌ Voice transcription failed")
-
-    # Chat input
-    if prompt := st.chat_input("Ask the AI brain about your network..."):
-        # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Get AI brain response
-        with st.chat_message("assistant"):
-            with st.spinner("🧠 AI brain is analyzing your network..."):
-                response = send_chat_message(prompt, generate_audio=st.session_state.voice_mode_enabled)
-
-                if response:
-                    ai_response = response.get('response', 'Sorry, I could not process your request.')
-                    audio_url = response.get('audio_url')
-
-                    st.markdown(ai_response)
-
-                    # Play audio if available
-                    if audio_url and st.session_state.voice_mode_enabled:
-                        full_audio_url = f"{st.session_state.api_url}{audio_url}"
-                        st.audio(full_audio_url, format="audio/wav", autoplay=True)
-
-                    # Show AI brain status
-                    ai_model_used = response.get('ai_model_used', False)
-                    rag_enabled = response.get('rag_enabled', False)
-
-                    with st.expander("🧠 AI Brain Analysis Details"):
-                        st.write(f"**AI Model Used:** {'Yes (distilgpt2)' if ai_model_used else 'No (rule-based)'}")
-                        st.write(f"**RAG Knowledge:** {'Enabled' if rag_enabled else 'Disabled'}")
-                        st.write(f"**Voice Response:** {'Yes' if audio_url else 'No'}")
-                        st.write(f"**Response Time:** {response.get('timestamp', 'Unknown')}")
-
-                    # Add AI response to messages with audio URL
-                    message_data = {"role": "assistant", "content": ai_response}
-                    if audio_url and st.session_state.voice_mode_enabled:
-                        message_data["audio_url"] = f"{st.session_state.api_url}{audio_url}"
-                    st.session_state.messages.append(message_data)
-                else:
-                    st.error("❌ Failed to get response from AI brain. Please check if the API server is running.")
-
-    # Footer
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("**AI Brain:** RAG + distilgpt2")
-    with col2:
-        st.markdown("**Analysis:** Real-time CLI")
-    with col3:
-        st.markdown("**Version:** 8.0.0")
-
-    # Auto-refresh mechanism at the end (triggers after full page render)
-    if st.session_state.auto_refresh:
-        current_time = time.time()
-        elapsed = current_time - st.session_state.last_refresh_time
-
-        if elapsed >= 1.0:
-            st.session_state.last_refresh_time = current_time
-            time.sleep(1.0)  # Wait exactly 1 second
-            st.rerun()
+    """Main application - Start Flask server"""
+    logger.info("Starting AI Network Brain UI Server")
+    logger.info(f"AI Brain API URL: {AI_BRAIN_API_URL}")
+    logger.info("Frontend will be served from: frontend/build")
+    logger.info("Server will run on: http://localhost:5001")
+    
+    # Run Flask app
+    app.run(
+        host='0.0.0.0',
+        port=5001,
+        debug=True,
+        threaded=True
+    )
 
 if __name__ == "__main__":
     main()
