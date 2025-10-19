@@ -26,12 +26,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class SimpleSmartAI:
-    def __init__(self):
+    def __init__(self, test_mode=False):
         self.tokenizer = None
         self.model = None
         self.vectorizer = None
         self.knowledge_base = []
         self.embeddings = None
+        self.test_mode = test_mode  # Enable test mode to simulate problems
         logger.info("🤖 Simple Smart AI initialized!")
         self.setup_rag_system()
         self.load_ai_model()
@@ -89,49 +90,67 @@ class SimpleSmartAI:
             self.model = None
     
     def load_wifi_knowledge_base(self) -> List[Dict[str, Any]]:
-        """Load WiFi troubleshooting knowledge base"""
+        """Load WiFi knowledge base with comprehensive network quality standards and benchmarks"""
         return [
             {
-                "title": "WiFi Signal Strength Tips",
-                "content": "Move your router to a central location, place it on a high shelf (3-6 feet up), and keep it away from walls and metal objects. Try the 5GHz network instead of 2.4GHz for better speed. Consider a WiFi extender for dead spots.",
-                "category": "signal_issues",
-                "keywords": ["signal strength", "dBm", "path loss", "obstacles", "antenna", "positioning"]
+                "title": "WiFi Signal Strength Standards",
+                "content": "Excellent signal: -30 to -50 dBm (strong connection, full speed). Good signal: -50 to -60 dBm (reliable connection, good speed). Fair signal: -60 to -70 dBm (usable but may be slow). Poor signal: -70 to -80 dBm (unstable connection, frequent drops). Very poor signal: below -80 dBm (connection problems expected).",
+                "category": "signal_quality",
+                "keywords": ["signal strength", "dBm", "excellent", "good", "fair", "poor", "connection quality", "bars", "weak", "strong"]
             },
             {
-                "title": "Slow Internet Speed Solutions",
-                "content": "Restart your router (unplug for 30 seconds). Move closer to your router or use 5GHz network. Close unnecessary apps and browser tabs. Disconnect some devices if you have many connected.",
-                "category": "speed_issues",
-                "keywords": ["congestion", "bandwidth", "QoS", "channels", "WiFi 6", "monitoring"]
+                "title": "Internet Speed and Latency Benchmarks",
+                "content": "Excellent latency: 0-20ms (gaming, video calls, real-time apps). Good latency: 20-50ms (streaming, browsing, most apps). Fair latency: 50-100ms (basic web use, some delays). Poor latency: 100-200ms (noticeable delays, slow loading). Very poor latency: above 200ms (significant problems, timeouts). Speed requirements: 1-5 Mbps (basic), 5-25 Mbps (HD streaming), 25-100 Mbps (4K streaming), 100+ Mbps (multiple devices).",
+                "category": "speed_latency",
+                "keywords": ["latency", "ping", "ms", "speed", "Mbps", "bandwidth", "fast", "slow", "excellent", "good", "fair", "poor", "response time", "loading"]
             },
             {
-                "title": "WiFi Security Tips",
-                "content": "Use a strong password (12+ characters with letters, numbers, symbols). Change the default router password. Enable WPA3 encryption if available. Keep router software updated. Create a separate guest network.",
-                "category": "security_issues",
-                "keywords": ["WPA3", "security", "encryption", "authentication", "firmware", "monitoring"]
+                "title": "Network Connection Quality Indicators",
+                "content": "A healthy network connection shows: WiFi status 'connected', internet connectivity working, DNS resolution successful, latency under 100ms, signal strength above -70 dBm, stable connection. Red flags include: disconnected status, failed internet tests, DNS errors, latency over 200ms, signal below -80 dBm, frequent disconnections.",
+                "category": "connection_health",
+                "keywords": ["connection status", "health indicators", "red flags", "network quality", "diagnostics", "working", "not working", "connected", "disconnected"]
             },
             {
-                "title": "Basic WiFi Troubleshooting Steps",
-                "content": "1) Restart your router (unplug for 30 seconds). 2) Check if other devices can connect. 3) Move closer to your router. 4) Try forgetting and reconnecting to WiFi. 5) Contact your internet provider if nothing works.",
-                "category": "troubleshooting",
-                "keywords": ["troubleshooting", "OSI model", "tools", "methodology", "analysis", "documentation"]
+                "title": "WiFi Network Performance Standards",
+                "content": "WiFi 6 (802.11ax): Latest standard with best performance, handles many devices. WiFi 5 (802.11ac): Good performance, widely supported. WiFi 4 (802.11n): Older but functional. 5GHz band: Faster speeds, shorter range, less interference. 2.4GHz band: Slower speeds, longer range, more interference. Channel width affects speed: 20MHz (basic), 40MHz (better), 80MHz (fast), 160MHz (fastest).",
+                "category": "network_standards",
+                "keywords": ["WiFi standards", "802.11", "frequency bands", "channel width", "performance", "compatibility", "5GHz", "2.4GHz", "WiFi 6", "WiFi 5"]
             },
             {
-                "title": "Quick Network Fix Checklist",
-                "content": "Check all cables are plugged in tightly. Verify router and modem have power with no red lights. Unplug router for 30 seconds, then plug back in. Try a different device to test if it's your device or the network.",
-                "category": "troubleshooting",
-                "keywords": ["checklist", "physical connections", "hardware status", "restart", "configuration", "connectivity tests", "ISP"]
+                "title": "Internet Speed Requirements by Activity",
+                "content": "Basic browsing: 1-5 Mbps. Email and social media: 1-3 Mbps. HD video streaming: 5-25 Mbps. 4K video streaming: 25-100 Mbps. Online gaming: 3-6 Mbps. Video conferencing: 1-4 Mbps. Multiple devices: 25-100+ Mbps depending on usage. Upload speeds typically 10-20% of download speeds. Speed tests measure actual throughput vs. advertised speeds.",
+                "category": "speed_requirements",
+                "keywords": ["bandwidth", "Mbps", "streaming", "gaming", "video conferencing", "multiple devices", "upload", "download", "speed test", "throughput", "advertised speed"]
             },
             {
-                "title": "Understanding Your Internet Speed",
-                "content": "Good speeds: 25+ Mbps for basic streaming, 50+ Mbps for HD video, 100+ Mbps for 4K. If speed is much lower than what you're paying for, restart your router, move closer to it, or use a wired connection.",
-                "category": "performance",
-                "keywords": ["bandwidth", "throughput", "latency", "jitter", "packet loss", "error rate", "RTT", "availability"]
+                "title": "Network Stability and Reliability Indicators",
+                "content": "Stable connection shows: Consistent signal strength, low packet loss (under 1%), stable latency, no frequent disconnections, reliable DNS resolution, consistent speeds. Unstable signs: Fluctuating signal, high packet loss, latency spikes, frequent drops, DNS failures, inconsistent speeds, intermittent connectivity.",
+                "category": "stability_metrics",
+                "keywords": ["stability", "packet loss", "disconnections", "fluctuations", "reliability", "consistency", "intermittent", "unstable", "stable", "drops", "spikes"]
             },
             {
-                "title": "WiFi Signal Quality Guide",
-                "content": "Check signal strength in WiFi settings - look for 3-4 bars. If only 1-2 bars, move closer to router or remove obstacles like walls and furniture. 5GHz is faster but doesn't reach as far as 2.4GHz.",
-                "category": "wifi_metrics",
-                "keywords": ["signal strength", "dBm", "SNR", "data transfer rate", "channel utilization", "interference", "coverage", "user density"]
+                "title": "WiFi Security and Authentication Standards",
+                "content": "WPA3: Latest and most secure encryption, best for new devices. WPA2: Widely used, secure for most purposes, compatible with most devices. WPA: Older, less secure, legacy support. WEP: Deprecated, insecure, should be avoided. Open networks: No encryption, not recommended for sensitive data. Strong passwords: 12+ characters, mixed case, numbers, symbols.",
+                "category": "security_standards",
+                "keywords": ["WPA3", "WPA2", "encryption", "security", "authentication", "passwords", "standards", "encryption", "secure", "insecure", "open network"]
+            },
+            {
+                "title": "Network Troubleshooting Quality Indicators",
+                "content": "Good network health: Connected status, working internet, fast DNS resolution, low latency (under 50ms), strong signal (above -60 dBm), stable connection, no packet loss. Problem indicators: Disconnected status, no internet access, DNS failures, high latency (over 100ms), weak signal (below -70 dBm), frequent disconnections, packet loss, slow speeds.",
+                "category": "troubleshooting_indicators",
+                "keywords": ["troubleshooting", "problem indicators", "good health", "bad health", "issues", "problems", "symptoms", "diagnostics", "network health"]
+            },
+            {
+                "title": "WiFi Range and Coverage Standards",
+                "content": "Excellent coverage: Signal strength -30 to -50 dBm throughout area. Good coverage: Signal strength -50 to -60 dBm in most areas. Fair coverage: Signal strength -60 to -70 dBm, some dead spots. Poor coverage: Signal strength -70 to -80 dBm, many dead spots. Very poor coverage: Signal below -80 dBm, frequent dead spots. Factors affecting range: Router placement, obstacles, interference, building materials, antenna orientation.",
+                "category": "coverage_standards",
+                "keywords": ["coverage", "range", "dead spots", "signal strength", "dBm", "router placement", "obstacles", "interference", "building materials", "antenna"]
+            },
+            {
+                "title": "Network Performance Optimization Standards",
+                "content": "Optimal performance: Latest WiFi standard (WiFi 6), 5GHz band, wide channels (80-160MHz), strong signal (-50 dBm or better), low latency (under 20ms), no interference, proper router placement. Performance issues: Old WiFi standard, 2.4GHz band, narrow channels, weak signal, high latency, interference, poor placement, too many devices, outdated equipment.",
+                "category": "optimization_standards",
+                "keywords": ["optimization", "performance", "optimal", "issues", "WiFi standard", "frequency band", "channels", "signal strength", "latency", "interference", "placement", "devices", "equipment"]
             }
         ]
     
@@ -194,26 +213,31 @@ class SimpleSmartAI:
         return " ".join(context_parts)
     
     def generate_ai_response(self, user_question: str, network_data: Dict[str, Any]) -> str:
-        """Generate AI response using model + RAG"""
-        # Retrieve relevant knowledge
+        """Generate AI response using rule-based logic first, then AI model if needed"""
+        # Get relevant knowledge for RAG
         relevant_knowledge = self.retrieve_relevant_knowledge(user_question, network_data)
         
-        # Generate AI response
-        if self.model and self.tokenizer:
+        # Use rule-based response first (this includes the new non-network text detection)
+        rule_based_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+        
+        # If rule-based response is the default "don't recognize" message, use AI model
+        if "I don't recognize that" in rule_based_response:
+            logger.info("🤖 Using AI model for unrecognized input...")
             return self._generate_ai_text(user_question, network_data, relevant_knowledge)
-        else:
-            return self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
+        
+        # Otherwise use the rule-based response
+        return rule_based_response
     
     def _generate_ai_text(self, user_question: str, network_data: Dict[str, Any], relevant_knowledge: List[Dict[str, Any]]) -> str:
         """Generate conversational AI response using the loaded model"""
         try:
             # Get the fallback response first
             fallback_response = self._generate_rule_based_response(user_question, network_data, relevant_knowledge)
-            
+
             # Create a prompt that asks the AI to say exactly what the fallback says
             wifi = network_data.get('wifi', {})
             connectivity = network_data.get('connectivity', {})
-            
+
             prompt = f"""You are a network assistant. The user asked: "{user_question}"
 Network status: WiFi {'connected' if wifi.get('status') == 'connected' else 'not connected'}, Internet {'working' if connectivity.get('internet_connected') else 'not working'}.
 
@@ -292,59 +316,42 @@ Response:"""
         """Generate conversational rule-based response when AI model is not available"""
         wifi = network_data.get('wifi', {})
         connectivity = network_data.get('connectivity', {})
+        performance = network_data.get('performance', {})
         
         # Analyze the question and network state to give appropriate response
         question_lower = user_question.lower()
         
-        # If asking about problems but network is working (check this FIRST)
-        if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and wifi.get('status') == 'connected' and connectivity.get('internet_connected'):
-            logger.info(f"🔍 Debug: Question contains troubleshooting keywords, relevant_knowledge count: {len(relevant_knowledge) if relevant_knowledge else 0}")
-            
-            # Attempt automatic fixes first
-            logger.info("🔧 Attempting automatic fixes...")
-            fix_results = self.attempt_automatic_fix(user_question, network_data)
-            
-            response_parts = []
-            response_parts.append("🤔 I can see you're experiencing issues. Let me help you troubleshoot:")
-            
-            # Report automatic fix results
-            if fix_results['total_attempted'] > 0:
-                response_parts.append("\n**🔧 Automatic Fixes Attempted:**")
-                
-                if fix_results['total_successful'] > 0:
-                    response_parts.append("✅ **Successful fixes:**")
-                    for fix in fix_results['fixes_successful']:
-                        response_parts.append(f"• {fix}")
-                
-                if fix_results['total_failed'] > 0:
-                    response_parts.append("❌ **Failed fixes:**")
-                    for fix in fix_results['fixes_failed']:
-                        response_parts.append(f"• {fix}")
-                
-                if fix_results['total_successful'] > 0:
-                    response_parts.append(f"\n🎉 **Great! I successfully fixed {fix_results['total_successful']} issue(s) automatically!**")
-                    response_parts.append("Please try your network again and let me know if you need any more help.")
-                    return "\n".join(response_parts)
-            
-            # If no automatic fixes or they failed, provide knowledge-based suggestions
-            if relevant_knowledge:
-                response_parts.append("\n**📚 Additional Troubleshooting Tips:**")
-                
-                for knowledge in relevant_knowledge:
-                    response_parts.append(f"\n**{knowledge['title']}:**")
-                    # Make it more conversational
-                    content = knowledge['content']
-                    if 'Solutions include:' in content:
-                        solutions = content.split('Solutions include:')[1].strip()
-                        # Convert to conversational format
-                        solutions = solutions.replace('1)', '• ').replace('2)', '• ').replace('3)', '• ').replace('4)', '• ').replace('5)', '• ').replace('6)', '• ').replace('7)', '• ').replace('8)', '• ').replace('9)', '• ').replace('10)', '• ')
-                        response_parts.append(solutions)
-                    else:
-                        response_parts.append(content)
-                
-                return "\n".join(response_parts)
-            else:
-                return "🤔 Actually, your network looks good! Your WiFi is connected and internet is working. Are you experiencing any specific issues? I can help troubleshoot if you let me know what's bothering you."
+        # Get actual network status for intelligent decision making
+        is_wifi_connected = wifi.get('status') == 'connected'
+        is_internet_working = connectivity.get('internet_connected', False)
+        signal_strength = wifi.get('signal_strength', 'unknown')
+        latency = connectivity.get('latency', 'unknown')
+        
+        # Determine if there are actual network problems based on real data
+        has_actual_problems = self._detect_actual_network_problems(network_data)
+        
+        logger.info(f"🔍 Network Analysis: WiFi={is_wifi_connected}, Internet={is_internet_working}, Problems={has_actual_problems}")
+        
+        # If user claims problems but network is actually working well, provide reassurance
+        if any(word in question_lower for word in ['not connected', 'disconnected', 'no internet', 'cant connect', 'wont connect', 'cant browse', 'no signal', 'offline']) and is_wifi_connected and is_internet_working:
+            return self._provide_reassurance_response(network_data)
+        
+        # If user claims slow internet but speed is actually good
+        if any(word in question_lower for word in ['slow', 'sluggish', 'crawling', 'terrible speed', 'awful speed']) and is_internet_working and self._is_speed_good(latency):
+            return self._provide_speed_reassurance_response(network_data)
+        
+        # If user claims weak signal but signal is actually good
+        if any(word in question_lower for word in ['weak signal', 'poor signal', 'bad signal', 'low bars', 'terrible signal']) and is_wifi_connected and self._is_signal_good(signal_strength):
+            return self._provide_signal_reassurance_response(network_data)
+        
+        # If asking about problems and there ARE CRITICAL CLI-detected problems, provide help
+        if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and has_actual_problems:
+            logger.info("🔧 CLI detected CRITICAL network problems, attempting targeted fix...")
+            return self._attempt_targeted_fix(user_question, network_data)
+        
+        # If asking about problems but network is actually working fine, provide reassurance
+        elif any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']) and not has_actual_problems:
+            return self._provide_general_reassurance_response(network_data)
         
         # If asking about WiFi status and it's connected
         elif any(word in question_lower for word in ['wifi', 'network', 'connected', 'connection']) and wifi.get('status') == 'connected':
@@ -401,9 +408,412 @@ Response:"""
             
             return "\n".join(response_parts)
         
-        # Default conversational response
+        # Check if input has nothing to do with networks
+        network_keywords = ['wifi', 'internet', 'network', 'connection', 'signal', 'speed', 'latency', 'bandwidth', 'router', 'modem', 'ethernet', 'wireless', 'online', 'offline', 'connect', 'disconnect', 'browse', 'web', 'ping', 'dns', 'ip', 'troubleshoot', 'fix', 'problem', 'issue', 'slow', 'fast', 'weak', 'strong', 'quality', 'performance']
+        
+        has_network_keywords = any(keyword in question_lower for keyword in network_keywords)
+        
+        if not has_network_keywords:
+            return "🤔 I don't recognize that input. I'm a network assistant - please try asking about WiFi, internet, or network issues like 'My WiFi is slow' or 'I can't connect to the internet'."
+        
+        # Default conversational response for network-related but unclear input
         else:
-            return f"👋 Hi! I can see your network status. Your WiFi is {'connected' if wifi.get('status') == 'connected' else 'not connected'} and internet is {'working' if connectivity.get('internet_connected') else 'not working'}. How can I help you with your network today?"
+            return "🤔 I don't recognize that. Please try again with a network-related question like 'My WiFi is slow' or 'I can't connect to the internet'."
+    
+    def _attempt_targeted_fix(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Simplified flow: detect specific problem → attempt targeted fix → report result"""
+        question_lower = user_question.lower()
+        
+        # Determine the specific problem type based on user's question keywords first
+        if any(word in question_lower for word in ['latency', 'ping', 'responsive', 'delay', 'lag']):
+            return self._fix_latency_issue(user_question, network_data)
+        
+        elif any(word in question_lower for word in ['bandwidth', 'throughput', 'capacity', 'data rate']):
+            return self._fix_bandwidth_issue(user_question, network_data)
+        
+        elif any(word in question_lower for word in ['signal', 'strength', 'interference', 'quality', 'bars']):
+            return self._fix_signal_integrity_issue(user_question, network_data)
+        
+        elif any(word in question_lower for word in ['slow', 'speed', 'performance', 'fast']):
+            return self._fix_speed_issue(user_question, network_data)
+        
+        elif any(word in question_lower for word in ['wifi', 'wireless', 'connection', 'disconnected']):
+            return self._fix_wifi_issue(user_question, network_data)
+        
+        elif any(word in question_lower for word in ['internet', 'web', 'browse', 'online']):
+            return self._fix_internet_issue(user_question, network_data)
+        
+        else:
+            return self._fix_general_network_issue(user_question, network_data)
+    
+    def _fix_internet_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix internet connectivity issues"""
+        logger.info("🌐 Attempting to fix internet issues...")
+        
+        # Try DNS-related fixes first
+        try:
+            result = bash_cmd.flush_dns_cache()
+            if "flushed" in result.lower():
+                return "✅ Fixed! I flushed your DNS cache. Try browsing the web now."
+        except:
+            pass
+        
+        try:
+            result = bash_cmd.restart_dns_service()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your DNS service. Try browsing the web now."
+        except:
+            pass
+        
+        # Try IP renewal
+        try:
+            result = bash_cmd.release_renew_ip()
+            if "released" in result.lower() and "renewed" in result.lower():
+                return "✅ Fixed! I renewed your IP address. Try browsing the web now."
+        except:
+            pass
+        
+        # Try network restart
+        try:
+            result = bash_cmd.restart_network_stack()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your network stack. Try browsing the web now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the internet issue automatically. Try: 1) Restart your router, 2) Check if other devices work, 3) Contact your ISP if the problem persists."
+    
+    def _fix_wifi_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix WiFi connectivity issues"""
+        logger.info("📶 Attempting to fix WiFi issues...")
+        
+        # Try WiFi adapter reset first
+        try:
+            result = bash_cmd.reset_wifi_adapter()
+            if "reset" in result.lower():
+                return "✅ Fixed! I reset your WiFi adapter. Try reconnecting to your network now."
+        except:
+            pass
+        
+        # Try reloading WiFi modules
+        try:
+            result = bash_cmd.reload_network_modules()
+            if "reloaded" in result.lower():
+                return "✅ Fixed! I reloaded your WiFi modules. Try reconnecting to WiFi now."
+        except:
+            pass
+        
+        # Try network manager restart
+        try:
+            result = bash_cmd.reset_networkmanager()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your network manager. Try reconnecting to WiFi now."
+        except:
+            pass
+        
+        # Try full network restart
+        try:
+            result = bash_cmd.restart_network_stack()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your network stack. Try reconnecting to WiFi now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the WiFi issue automatically. Try: 1) Move closer to your router, 2) Restart your router, 3) Check if other devices can connect."
+    
+    def _fix_speed_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix network speed/performance issues"""
+        logger.info("⚡ Attempting to fix speed issues...")
+        
+        # Try changing WiFi band for better performance
+        try:
+            result = bash_cmd.change_band()
+            if "connected" in result.lower():
+                return "✅ Fixed! I switched you to a faster WiFi band. Your internet should be faster now."
+        except:
+            pass
+        
+        # Try DNS flush for faster resolution
+        try:
+            result = bash_cmd.flush_dns_cache()
+            if "flushed" in result.lower():
+                return "✅ Fixed! I flushed your DNS cache. Your internet should be faster now."
+        except:
+            pass
+        
+        # Try IP renewal for fresh connection
+        try:
+            result = bash_cmd.release_renew_ip()
+            if "released" in result.lower() and "renewed" in result.lower():
+                return "✅ Fixed! I renewed your IP address. Your internet should be faster now."
+        except:
+            pass
+        
+        # Try network restart
+        try:
+            result = bash_cmd.restart_network_stack()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your network stack. Your internet should be faster now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the speed issue automatically. Try: 1) Move closer to your router, 2) Close other apps using internet, 3) Restart your router, 4) Check if other devices are slow too."
+    
+    def _fix_general_network_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix general network issues"""
+        logger.info("🔧 Attempting to fix general network issues...")
+        
+        # Try comprehensive network reset
+        try:
+            result = bash_cmd.restart_network_stack()
+            if "restarted" in result.lower():
+                return "✅ Fixed! I restarted your network stack. Try using your network now."
+        except:
+            pass
+        
+        # Try reloading network modules
+        try:
+            result = bash_cmd.reload_network_modules()
+            if "reloaded" in result.lower():
+                return "✅ Fixed! I reloaded your network modules. Try using your network now."
+        except:
+            pass
+        
+        # Try IP renewal
+        try:
+            result = bash_cmd.release_renew_ip()
+            if "released" in result.lower() and "renewed" in result.lower():
+                return "✅ Fixed! I renewed your IP address. Try using your network now."
+        except:
+            pass
+        
+        # Try DNS flush
+        try:
+            result = bash_cmd.flush_dns_cache()
+            if "flushed" in result.lower():
+                return "✅ Fixed! I flushed your DNS cache. Try using your network now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the network issue automatically. Try: 1) Restart your router, 2) Restart your device, 3) Check if other devices work, 4) Contact your ISP if the problem persists."
+    
+    def _fix_latency_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix latency and responsiveness issues"""
+        logger.info("⏱️ Attempting to fix latency issues...")
+        
+        # Try latency-specific fixes
+        try:
+            result = bash_cmd.fix_latency_issues()
+            if "addressed" in result.lower():
+                return "✅ Fixed! I optimized your network stack for better latency. Try your connection now."
+        except:
+            pass
+        
+        # Try DNS optimization
+        try:
+            result = bash_cmd.flush_dns_cache()
+            if "flushed" in result.lower():
+                return "✅ Fixed! I flushed your DNS cache for faster resolution. Try your connection now."
+        except:
+            pass
+        
+        # Try network performance optimization
+        try:
+            result = bash_cmd.optimize_network_performance()
+            if "optimized" in result.lower():
+                return "✅ Fixed! I optimized your network performance settings. Try your connection now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the latency issue automatically. Try: 1) Move closer to your router, 2) Close other apps, 3) Use a wired connection, 4) Check if other devices have the same issue."
+    
+    def _fix_bandwidth_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix bandwidth and throughput issues"""
+        logger.info("📊 Attempting to fix bandwidth issues...")
+        
+        # Try bandwidth optimization
+        try:
+            result = bash_cmd.optimize_bandwidth()
+            if "optimized" in result.lower():
+                return "✅ Fixed! I optimized your bandwidth settings. Try your connection now."
+        except:
+            pass
+        
+        # Try changing WiFi band for better performance
+        try:
+            result = bash_cmd.change_band()
+            if "connected" in result.lower():
+                return "✅ Fixed! I switched you to a faster WiFi band. Try your connection now."
+        except:
+            pass
+        
+        # Try network performance optimization
+        try:
+            result = bash_cmd.optimize_network_performance()
+            if "optimized" in result.lower():
+                return "✅ Fixed! I optimized your network performance. Try your connection now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the bandwidth issue automatically. Try: 1) Move closer to your router, 2) Close other apps using internet, 3) Use 5GHz WiFi, 4) Check if other devices are using bandwidth."
+    
+    def _fix_signal_integrity_issue(self, user_question: str, network_data: Dict[str, Any]) -> str:
+        """Fix signal integrity and interference issues"""
+        logger.info("📶 Attempting to fix signal integrity issues...")
+        
+        # Try signal optimization
+        try:
+            result = bash_cmd.optimize_wifi_signal()
+            if "optimized" in result.lower():
+                return "✅ Fixed! I optimized your WiFi signal. Try your connection now."
+        except:
+            pass
+        
+        # Try fixing signal interference
+        try:
+            result = bash_cmd.fix_signal_interference()
+            if "reduced" in result.lower():
+                return "✅ Fixed! I reduced signal interference by changing channels. Try your connection now."
+        except:
+            pass
+        
+        # Try WiFi adapter reset
+        try:
+            result = bash_cmd.reset_wifi_adapter()
+            if "reset" in result.lower():
+                return "✅ Fixed! I reset your WiFi adapter for better signal. Try your connection now."
+        except:
+            pass
+        
+        # If fixes failed, give suggestion
+        return "❌ I couldn't fix the signal issue automatically. Try: 1) Move closer to your router, 2) Remove obstacles, 3) Change WiFi channel, 4) Check for interference from other devices."
+    
+    def _detect_actual_network_problems(self, network_data: Dict[str, Any]) -> bool:
+        """Detect if there are actual network problems based on real CLI data - only troubleshoot when there are definitive issues"""
+        wifi = network_data.get('wifi', {})
+        connectivity = network_data.get('connectivity', {})
+        performance = network_data.get('performance', {})
+        
+        # Check for definitive problems that require troubleshooting
+        problems = []
+        
+        # Only troubleshoot for CRITICAL issues detected by CLI commands
+        # WiFi completely disconnected
+        if wifi.get('status') != 'connected':
+            problems.append("WiFi not connected")
+            logger.info("🔍 CLI detected: WiFi is not connected")
+        
+        # Internet completely not working
+        if not connectivity.get('internet_connected', False):
+            problems.append("Internet not working")
+            logger.info("🔍 CLI detected: Internet is not working")
+        
+        # Only troubleshoot for EXTREMELY poor signal (not just "weak")
+        signal_strength = wifi.get('signal_strength', 'unknown')
+        if signal_strength != 'unknown':
+            try:
+                signal_int = int(signal_strength)
+                if signal_int < -85:  # Only very poor signal (more strict than -80)
+                    problems.append("Extremely weak signal")
+                    logger.info(f"🔍 CLI detected: Extremely weak signal ({signal_int} dBm)")
+            except:
+                pass
+        
+        # Only troubleshoot for EXTREMELY slow internet (not just "slow")
+        latency = connectivity.get('latency', 'unknown')
+        if latency != 'unknown':
+            try:
+                # Extract numeric value from latency string like "5.596ms"
+                latency_num = float(latency.replace('ms', ''))
+                if latency_num > 200:  # Only very high latency (more strict than 100ms)
+                    problems.append("Extremely slow internet")
+                    logger.info(f"🔍 CLI detected: Extremely slow internet ({latency_num}ms)")
+            except:
+                pass
+        
+        # Only troubleshoot if there are CRITICAL problems
+        has_critical_problems = len(problems) > 0
+        logger.info(f"🔍 CLI-based problem detection: {problems} -> Has critical problems: {has_critical_problems}")
+        return has_critical_problems
+    
+    def _is_speed_good(self, latency: str) -> bool:
+        """Check if internet speed is good based on latency"""
+        if latency == 'unknown':
+            return True  # Assume good if we can't measure
+        
+        try:
+            latency_num = float(latency.replace('ms', ''))
+            return latency_num < 50  # Good if under 50ms
+        except:
+            return True  # Assume good if we can't parse
+    
+    def _is_signal_good(self, signal_strength: str) -> bool:
+        """Check if WiFi signal is good"""
+        if signal_strength == 'unknown':
+            return True  # Assume good if we can't measure
+        
+        try:
+            signal_int = int(signal_strength)
+            return signal_int > -70  # Good if better than -70 dBm
+        except:
+            return True  # Assume good if we can't parse
+    
+    def _provide_reassurance_response(self, network_data: Dict[str, Any]) -> str:
+        """Provide reassurance when user thinks they're disconnected but they're actually connected"""
+        wifi = network_data.get('wifi', {})
+        connectivity = network_data.get('connectivity', {})
+        ssid = wifi.get('ssid', 'your network')
+        
+        return f"✅ Actually, your network is working perfectly! You're connected to **{ssid}** and your internet is working well. Sometimes it takes a moment for websites to load, but your connection is solid!"
+    
+    def _provide_speed_reassurance_response(self, network_data: Dict[str, Any]) -> str:
+        """Provide reassurance when user thinks internet is slow but it's actually good"""
+        connectivity = network_data.get('connectivity', {})
+        latency = connectivity.get('latency', 'unknown')
+        
+        if latency != 'unknown':
+            return f"✅ Your internet speed is actually quite good! Your connection latency is {latency}, which is excellent for browsing and streaming. Sometimes websites can be slow due to their servers, but your connection is fast!"
+        else:
+            return "✅ Your internet connection is working well! Sometimes websites can be slow due to their servers, but your connection is solid!"
+    
+    def _provide_signal_reassurance_response(self, network_data: Dict[str, Any]) -> str:
+        """Provide reassurance when user thinks signal is weak but it's actually good"""
+        wifi = network_data.get('wifi', {})
+        signal_strength = wifi.get('signal_strength', 'unknown')
+        ssid = wifi.get('ssid', 'your network')
+        
+        if signal_strength != 'unknown':
+            try:
+                signal_int = int(signal_strength)
+                if signal_int > -50:
+                    quality = "excellent"
+                    emoji = "🟢"
+                elif signal_int > -70:
+                    quality = "good"
+                    emoji = "🟡"
+                else:
+                    quality = "fair"
+                    emoji = "🟠"
+                
+                return f"✅ Your WiFi signal is actually {emoji} **{quality}**! You're connected to **{ssid}** with {signal_strength} dBm, which is a strong signal. Your connection should work great!"
+            except:
+                return f"✅ Your WiFi signal is strong! You're connected to **{ssid}** and your connection is working well."
+        else:
+            return f"✅ Your WiFi signal is good! You're connected to **{ssid}** and your connection is working well."
+    
+    def _provide_general_reassurance_response(self, network_data: Dict[str, Any]) -> str:
+        """Provide general reassurance when user thinks there are problems but network is working fine"""
+        wifi = network_data.get('wifi', {})
+        connectivity = network_data.get('connectivity', {})
+        ssid = wifi.get('ssid', 'your network')
+        
+        return f"✅ Actually, your network looks great! Your WiFi is connected to **{ssid}** and your internet is working well. Are you experiencing any specific issues? Sometimes restarting your browser or clearing its cache can help if websites seem slow."
     
     def _analyze_current_network(self, network_data: Dict[str, Any]) -> str:
         """Analyze current network status"""
@@ -445,6 +855,11 @@ Response:"""
     
     def get_network_data(self, user_question: str = "") -> Dict[str, Any]:
         """Get network data with hybrid approach - fast core + smart additions"""
+        # Test mode: simulate network problems for testing
+        if self.test_mode:
+            logger.info("🧪 TEST MODE: Simulating network problems...")
+            return self._get_simulated_problem_data()
+        
         # Always collect core data (fast)
         data = {
             "wifi": self.get_wifi_info(),
@@ -458,6 +873,34 @@ Response:"""
             data.update(self.get_smart_additional_data(user_question))
         
         return data
+    
+    def _get_simulated_problem_data(self) -> Dict[str, Any]:
+        """Simulate network problems for testing"""
+        return {
+            "wifi": {
+                "status": "disconnected",
+                "ssid": "None",
+                "signal_strength": "-95 dBm",
+                "interface": "en0",
+                "ip_address": "None"
+            },
+            "connectivity": {
+                "internet_connected": False,
+                "dns_working": False,
+                "latency": "999ms"
+            },
+            "performance": {
+                "active_connections": 0,
+                "network_quality": "poor"
+            },
+            "timestamp": time.time(),
+            "diagnostics": {
+                "network_interfaces": [],
+                "routing_table": "unknown",
+                "dns_resolution": {},
+                "connectivity_tests": {}
+            }
+        }
     
     def get_smart_additional_data(self, user_question: str) -> Dict[str, Any]:
         """Smart data collection based on user question keywords"""
@@ -953,13 +1396,8 @@ Response:"""
         # Get network data with smart collection based on question
         network_data = self.get_network_data(message)
         
-        # Attempt automatic fixes for troubleshooting questions
+        # Simplified flow: let generate_ai_response handle all logic
         fix_results = None
-        question_lower = message.lower()
-        if any(word in question_lower for word in ['problem', 'issue', 'wrong', 'slow', 'bad', 'troubleshoot', 'help', 'fix', 'improve', 'optimize', 'signal', 'weak', 'poor', 'connection']):
-            logger.info("🔧 Attempting automatic fixes...")
-            fix_results = self.attempt_automatic_fix(message, network_data)
-            network_data['automatic_fixes'] = fix_results
         
         # Generate AI response using RAG + model
         response = self.generate_ai_response(message, network_data)
